@@ -36,7 +36,23 @@ export function downloadCookiesConfigured(userId: number) {
 /** Build an argv list for metadata-only features that share yt-dlp and its
  * optional cookie jar without exposing the cookie path outside this module. */
 export function ytdlpCommand(userId: number, args: string[], useCookies = false): string[] {
-  return [YTDLP, ...args, ...(useCookies && downloadCookiesConfigured(userId) ? ["--cookies", downloadCookiesFile(userId)] : [])];
+  return [YTDLP, ...ytdlpAttemptArgs(args, useCookies, useCookies && downloadCookiesConfigured(userId) ? downloadCookiesFile(userId) : null)];
+}
+
+/** The bundled PO-token plugin is deliberately opt-in per anonymous command.
+ * This keeps it out of cookie-backed attempts and native installs that did not
+ * opt into the image-provided paths. */
+export function ytdlpAttemptArgs(args: string[], useCookies: boolean, cookieFile: string | null = null): string[] {
+  const result = [...args];
+  if (useCookies && cookieFile) result.push("--cookies", cookieFile);
+  if (!useCookies) {
+    const pluginDir = process.env.YTDLP_BGUTIL_PLUGIN_DIR;
+    const serverHome = process.env.YTDLP_BGUTIL_SERVER_HOME;
+    if (pluginDir && serverHome) {
+      result.push("--plugin-dirs", pluginDir, "--extractor-args", `youtubepot-bgutilscript:server_home=${serverHome}`);
+    }
+  }
+  return result;
 }
 
 export function saveDownloadCookies(userId: number, contents: string) {

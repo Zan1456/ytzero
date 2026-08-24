@@ -2,6 +2,7 @@ import { AudioSourceCache, audioSourceKey } from "./audioSourceCache";
 import { fetchGoogleVideoResponse, safeGoogleVideoUrl } from "./audioUpstreamUrl";
 import { downloadCookieAttempts } from "./downloadStrategy";
 import { rewriteLiveAudioPlaylist } from "./liveAudioPlaylist";
+import { ytdlpAttemptArgs } from "./downloadConfig";
 
 interface DownloadLiveAudioDependencies {
   YTDLP: string;
@@ -93,11 +94,10 @@ export function createDownloadLiveAudioStreaming(dependencies: DownloadLiveAudio
       "-f", LIVE_AUDIO_FORMAT,
       "--get-url",
     ];
-    if (useCookies) args.push("--cookies", downloadCookiesFile(userId));
     if (signal.aborted) return null;
     let process: ReturnType<typeof Bun.spawn>;
     try {
-      process = spawn([YTDLP, ...args], { stdout: "pipe", stderr: "pipe" });
+      process = spawn([YTDLP, ...ytdlpAttemptArgs(args, useCookies, useCookies ? downloadCookiesFile(userId) : null)], { stdout: "pipe", stderr: "pipe" });
     } catch {
       return null;
     }
@@ -128,7 +128,7 @@ export function createDownloadLiveAudioStreaming(dependencies: DownloadLiveAudio
 
   async function resolveFresh(userId: number, videoId: string, signal: AbortSignal): Promise<LiveAudioSession | null> {
     if (!(await ytdlpStatus()) || signal.aborted) return null;
-    for (const useCookies of downloadCookieAttempts(downloadCookiesConfigured(userId))) {
+    for (const useCookies of downloadCookieAttempts(downloadCookiesConfigured(userId), userId)) {
       const playlistUrl = await resolveAttempt(userId, videoId, useCookies, signal);
       if (playlistUrl) {
         return {

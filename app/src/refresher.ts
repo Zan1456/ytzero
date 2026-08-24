@@ -15,7 +15,7 @@ import { configuredTimeZone } from "./timeZone";
 import { manualScheduleIsDue, nextScheduleOccurrenceMs, parseManualRefreshSchedule } from "./channelRefreshSchedule";
 import { liveStatusChanged, resolveActiveLivestreams, type StoredLiveStatus } from "./liveStatus";
 import { channelSyncJobIsRunning } from "./channelSyncRuntime";
-import { isYouTubeRateLimitError } from "./youtubeRateLimit";
+import { isYouTubeRateLimitError, isYouTubeRefusalError } from "./youtubeRateLimit";
 import { RSS_VIDEO_UPSERT_SQL } from "./videoUpserts";
 import { syncChannelVideoAvailability } from "./videoAvailabilitySync";
 
@@ -468,8 +468,19 @@ export async function backfillShorts(videoIds?: string[], limit = 50) {
       .all(VIDEO_MAINTENANCE_CUTOFF, limit) as any[];
   }
   const setShort = database.prepare("UPDATE videos SET is_short = ? WHERE video_id = ?");
+  let checked = 0;
   for (const r of rows) {
-    const short = await classifyIsShort(r.video_id, r.title);
+    let short: boolean | null;
+    try {
+      short = await classifyIsShort(r.video_id, r.title);
+    } catch (error) {
+      if (isYouTubeRefusalError(error)) {
+        log.info("video.shorts_backfill_halted", { checked, skipped: rows.length - checked });
+        break;
+      }
+      throw error;
+    }
+    checked++;
     if (short !== null) await setShort.run(short ? 1 : 0, r.video_id);
     log.info("video.short_checked", { videoId: r.video_id, isShort: short });
     await Bun.sleep(120);
@@ -1032,10 +1043,13 @@ export async function refreshVideoMetadataBatch(limit = 10) {
 
   let durationsFilled = 0;
   let datesFilled = 0;
+  let checked = 0;
+  let skipped = 0;
   for (let i = 0; i < rows.length; i++) {
     const { video_id, live_status } = rows[i];
     try {
       const info = await fetchVideoInfo(video_id);
+      checked++;
       durationRetry.delete(video_id);
       if (info.duration) {
         await save.run(info.duration, video_id);
@@ -1045,6 +1059,12 @@ export async function refreshVideoMetadataBatch(limit = 10) {
       }
       if (info.publishedAt) datesFilled += (await savePublishedAt.run(info.publishedAt, video_id)).changes;
     } catch (e) {
+      if (isYouTubeRefusalError(e)) {
+        skipped = rows.length - i - 1;
+        log.info("video.metadata_halted", { checked, skipped });
+        break;
+      }
+      checked++;
       if (isPrivateVideoError(e)) {
         durationRetry.delete(video_id);
         await database.prepare(`
@@ -1085,7 +1105,7 @@ export async function refreshVideoMetadataBatch(limit = 10) {
     }
     if (i < rows.length - 1) await Bun.sleep(800);
   }
-  log.info("video.metadata_batch", { checked: rows.length, durationsFilled, datesFilled });
+  log.info("video.metadata_batch", { checked, skipped, durationsFilled, datesFilled });
 }
 
 // Imported (Takeout) videos land on a placeholder channel with an empty title;
@@ -1123,10 +1143,13 @@ export async function backfillImportedVideos(limit = 15) {
   if (rows.length === 0) return;
 
   let enriched = 0;
+  let checked = 0;
+  let skipped = 0;
   for (let i = 0; i < rows.length; i++) {
     const videoId = rows[i].video_id;
     try {
       const info = await fetchVideoInfo(videoId);
+      checked++;
       // Without an owner the row would stay on the placeholder channel and be
       // re-picked every tick; back off like a failure instead.
       if (!info.channelId) throw new Error("video info has no channelId");
@@ -1145,6 +1168,12 @@ export async function backfillImportedVideos(limit = 15) {
       );
       enriched++;
     } catch (e) {
+      if (isYouTubeRefusalError(e)) {
+        skipped = rows.length - i - 1;
+        log.info("import.enrich_halted", { checked, skipped });
+        break;
+      }
+      checked++;
       if (isPrivateVideoError(e)) {
         importRetry.delete(videoId);
         await database.prepare(`
@@ -1168,7 +1197,7 @@ export async function backfillImportedVideos(limit = 15) {
     }
     if (i < rows.length - 1) await Bun.sleep(800);
   }
-  log.info("import.enrich_batch", { checked: rows.length, enriched });
+  log.info("import.enrich_batch", { checked, skipped, enriched });
 }
 
 export async function refreshAll(options: { force?: boolean; manualOnly?: boolean } = {}): Promise<{ channels: number; added: number; errors: string[] }> {

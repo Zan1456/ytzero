@@ -246,7 +246,7 @@ export const api = {
     if (refresh) qs.set("refresh", "1");
     return http<RecommendationsResponse>(`/recommendations?${qs.toString()}`);
   },
-  videoInfo: (id: string) => http<{ info: VideoInfo }>(`/videos/${id}/info`),
+  videoInfo: (id: string, related = false) => http<{ info: VideoInfo | null }>(`/videos/${id}/info${related ? "?related=1" : ""}`),
   externalVideos: () => http<{ videos: Video[] }>("/external"),
   clearExternal: () => http<{ deleted: number }>("/external", { method: "DELETE" }),
   removeExternal: (id: string) => http<{ deleted: number }>(`/external/${id}`, { method: "DELETE" }),

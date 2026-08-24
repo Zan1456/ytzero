@@ -1,6 +1,7 @@
 import { database } from "./database";
 import { log } from "./logger";
 import { fetchVideoInfo } from "./youtube";
+import { isYouTubeRefusalError } from "./youtubeRateLimit";
 import { persistDirectVideoInfo } from "./videoInfoPersistence";
 import { videoSelect, type VideoRow } from "./videoRoutesSupport";
 
@@ -24,6 +25,7 @@ export async function refreshExternalWatchVideo(row: VideoRow, userId: number): 
     }
     return refreshed;
   } catch (error) {
+    if (isYouTubeRefusalError(error)) return row;
     log.warn("video.metadata_refresh_failed", {
       videoId: row.video_id,
       source: "watch_open",

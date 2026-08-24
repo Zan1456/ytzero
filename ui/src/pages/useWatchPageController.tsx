@@ -630,7 +630,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
         // External video already in DB but its RSS siblings were cleared:
         // refresh them in the background so the "related" panel refills.
         if (r.video.external && r.related.length === 0) {
-          api.videoInfo(id)
+          api.videoInfo(id, true)
             .then(() => api.video(id))
             .then((r2) => { if (!cancelled) setRelated(r2.related); })
             .catch(() => {});
@@ -643,6 +643,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
           api.videoInfo(id)
             .then((r) => {
               if (cancelled) return;
+              if (!r.info) return;
               setVideoInfo(r.info);
               // Video was just inserted as external — fetch the full Video object
               return api.video(id).then((full) => {

@@ -3,7 +3,7 @@ import { createRequire } from "module";
 import { decodeHtmlEntities } from "./htmlEntities";
 import { db, getUserSetting } from "./db";
 import { createYoutubeSearch, parseAbbreviatedCount } from "./youtubeSearch";
-import { isYouTubeRateLimitError, readYouTubeResponse } from "./youtubeRateLimit";
+import { isYouTubeRateLimitError, isYouTubeRefusalError, readYouTubeResponse, youtubeRefusalGate } from "./youtubeRateLimit";
 import { DeletedVideoError, fetchVideoOEmbedAvailability, isDeletedVideoError, isPrivateVideoError, PrivateVideoError } from "./youtubeVideoAvailability";
 export { DeletedVideoError, fetchVideoOEmbedAvailability, isDeletedVideoError, isPrivateVideoError, PrivateVideoError, videoOEmbedAvailabilityFromStatus } from "./youtubeVideoAvailability";
 const _require = createRequire(import.meta.url);
@@ -1078,6 +1078,8 @@ export async function fetchVideoInfo(videoId: string, options: { force?: boolean
   const cached = videoInfoCache.get(videoId);
   if (cached && Date.now() - cached.at < VIDEO_INFO_TTL) return cached.data;
 
+  youtubeRefusalGate.enter();
+
   let result: VideoInfo;
   try {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
@@ -1087,18 +1089,24 @@ export async function fetchVideoInfo(videoId: string, options: { force?: boolean
     const pr = extractVariable(html, "ytInitialPlayerResponse");
     result = videoInfoFromPlayerResponse(videoId, pr);
   } catch (htmlError) {
+    if (isYouTubeRefusalError(htmlError)) throw youtubeRefusalGate.refused(htmlError);
     try {
       result = await fetchVideoInfoFromInnerTube(videoId);
     } catch (innerTubeError) {
+      if (isYouTubeRefusalError(innerTubeError)) throw youtubeRefusalGate.refused(innerTubeError);
       try {
         result = await fetchVideoInfoFromEmbed(videoId);
       } catch (embedError) {
+        if (isYouTubeRefusalError(embedError)) throw youtubeRefusalGate.refused(embedError);
         if ([htmlError, innerTubeError, embedError].some(isPrivateVideoError)) {
+          youtubeRefusalGate.answered();
           throw new PrivateVideoError();
         }
         if ([htmlError, innerTubeError, embedError].some(isDeletedVideoError)) {
+          youtubeRefusalGate.answered();
           throw new DeletedVideoError();
         }
+        youtubeRefusalGate.releaseProbe();
         const primary = htmlError instanceof Error ? htmlError.message : String(htmlError);
         const fallback = innerTubeError instanceof Error ? innerTubeError.message : String(innerTubeError);
         const embed = embedError instanceof Error ? embedError.message : String(embedError);
@@ -1107,6 +1115,7 @@ export async function fetchVideoInfo(videoId: string, options: { force?: boolean
     }
   }
   videoInfoCache.set(videoId, { at: Date.now(), data: result });
+  youtubeRefusalGate.answered();
   return result;
 }
 
@@ -1177,20 +1186,29 @@ export async function classifyIsShort(
   fetchImpl: typeof fetch = fetch,
 ): Promise<boolean | null> {
   if (/#shorts?\b/i.test(title)) return true;
+  youtubeRefusalGate.enter();
   try {
     const res = await fetchImpl(`https://www.youtube.com/shorts/${videoId}`, {
       method: "HEAD",
       redirect: "manual",
       headers: FETCH_HEADERS,
     });
+    if (res.status === 429) throw youtubeRefusalGate.refused(new Error("YouTube shorts fetch failed (429)"));
     if (res.status === 200) {
       const availability = await fetchVideoOEmbedAvailability(videoId, fetchImpl);
+      youtubeRefusalGate.answered();
       return availability === "available" ? true : null;
     }
     const location = res.headers.get("location") ?? "";
-    if (res.status >= 300 && res.status < 400 && /\/watch(?:\?|$)/i.test(location)) return false;
+    if (res.status >= 300 && res.status < 400 && /\/watch(?:\?|$)/i.test(location)) {
+      youtubeRefusalGate.answered();
+      return false;
+    }
+    youtubeRefusalGate.answered();
     return null;
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.name === "YouTubeRefusalError") throw error;
+    youtubeRefusalGate.releaseProbe();
     return null;
   }
 }

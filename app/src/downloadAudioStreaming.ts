@@ -23,6 +23,8 @@ interface DownloadAudioStreamingDependencies {
 const AUDIO_REQUEST_TIMEOUT_MS = 45_000;
 const AUDIO_REDIRECT_LIMIT = 4;
 const AUDIO_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const FRESH_URL_WINDOW_MS = 5_000;
+const FRESH_URL_RETRY_DELAYS_MS = [250, 400, 650, 1_000];
 
 export function createDownloadAudioStreaming(dependencies: DownloadAudioStreamingDependencies) {
   const { audioDiagnostic = defaultAudioDiagnostic, fetchImpl = fetch } = dependencies;
@@ -119,6 +121,33 @@ export function createDownloadAudioStreaming(dependencies: DownloadAudioStreamin
     return null;
   }
 
+  async function waitForFreshUrlRetry(delay: number, signal: AbortSignal): Promise<boolean> {
+    if (signal.aborted) return false;
+    return await new Promise((resolve) => {
+      const timer = setTimeout(() => finish(true), delay);
+      const abort = () => finish(false);
+      const finish = (value: boolean) => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", abort);
+        resolve(value);
+      };
+      signal.addEventListener("abort", abort, { once: true });
+    });
+  }
+
+  async function retryFreshForbidden(
+    userId: number, videoId: string, source: AudioSource, range: AudioByteRange, signal: AbortSignal,
+  ): Promise<Response | null> {
+    if (!source.issuedAt || Date.now() - source.issuedAt > FRESH_URL_WINDOW_MS) return null;
+    for (const delay of FRESH_URL_RETRY_DELAYS_MS) {
+      if (!await waitForFreshUrlRetry(delay, signal)) return null;
+      const retry = await fetchAudioUpstream(userId, videoId, source.url, range, signal);
+      if (!retry || retry.status !== 403) return retry;
+      await retry.body?.cancel().catch(() => {});
+    }
+    return null;
+  }
+
   async function validatedAudioUpstream(
     userId: number,
     videoId: string,
@@ -129,6 +158,10 @@ export function createDownloadAudioStreaming(dependencies: DownloadAudioStreamin
     if (!source) return null;
 
     let upstream = await fetchAudioUpstream(userId, videoId, source.url, range, signal);
+    if (upstream?.status === 403) {
+      await upstream.body?.cancel().catch(() => {});
+      upstream = await retryFreshForbidden(userId, videoId, source, range, signal) ?? new Response(null, { status: 403 });
+    }
     if (upstream && (upstream.status === 403 || upstream.status === 410)) {
       audioDiagnostic("info", "audio.source_refresh", {
         userId, videoId, reason: "upstream_status", status: upstream.status,

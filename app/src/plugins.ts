@@ -1,6 +1,7 @@
 import { database } from "./database";
 import { getSetting, reloadSettingCache } from "./db";
 import { classifyIsShort, fetchChannelAbout, fetchVideoInfo, searchYouTube, type SearchResult, type VideoInfo } from "./youtube";
+import { isYouTubeRefusalError } from "./youtubeRateLimit";
 import { buildKeywordPlan, tokenizeDiscoveryText, type KeywordSeed } from "./discoveryKeywords";
 import { maintenanceActive } from "./maintenance";
 import { log } from "./logger";
@@ -623,7 +624,9 @@ async function externalRecommendations(uid: number, limit: number, settings: Rec
 
   const imported: DiscoveryRecommendation[] = [];
   for (const candidate of candidates.sort((a, b) => b.matchScore - a.matchScore).slice(0, limit * 2)) {
-    const info = await fetchVideoInfo(candidate.videoId).catch(() => null);
+    let info: VideoInfo | null;
+    try { info = await fetchVideoInfo(candidate.videoId); }
+    catch (error) { if (isYouTubeRefusalError(error)) break; info = null; }
     if (!info) continue;
     if (info.liveStatus !== "none") continue;
     // A network error is `null`, not proof that this is a regular video.

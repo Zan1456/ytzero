@@ -1,5 +1,5 @@
 import { downloadCookiesConfigured, ytdlpCommand } from "./downloader";
-import { downloadCookieAttempts } from "./downloadStrategy";
+import { downloadCookieAttempts, isAnonymousAddressRefusal, recordDownloadAttempt } from "./downloadStrategy";
 import { log } from "./logger";
 
 const COMMENTS_TTL_MS = 5 * 60_000;
@@ -181,10 +181,14 @@ async function runYtdlp(userId: number, videoId: string, sort: VideoCommentSort,
 
 async function extractVideoComments(userId: number, videoId: string, sort: VideoCommentSort): Promise<VideoComment[]> {
   let lastError: unknown;
-  for (const useCookies of downloadCookieAttempts(downloadCookiesConfigured(userId))) {
+  let anonymousRefused = false;
+  for (const useCookies of downloadCookieAttempts(downloadCookiesConfigured(userId), userId)) {
     try {
-      return await runYtdlp(userId, videoId, sort, useCookies);
+      const comments = await runYtdlp(userId, videoId, sort, useCookies);
+      recordDownloadAttempt(userId, useCookies, true, anonymousRefused);
+      return comments;
     } catch (error) {
+      if (!useCookies) anonymousRefused ||= isAnonymousAddressRefusal(error instanceof VideoCommentsError ? error.detail : String(error));
       lastError = error;
     }
   }

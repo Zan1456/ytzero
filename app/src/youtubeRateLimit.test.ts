@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { fetchChannelPlaylists, fetchChannelVideos, fetchVideoPublishedAt } from "./youtube";
-import { isYouTubeBotChallenge, isYouTubeRateLimitError, readYouTubeResponse } from "./youtubeRateLimit";
+import { isYouTubeBotChallenge, isYouTubeRateLimitError, isYouTubeRefusalError, readYouTubeResponse, YouTubeRefusalError, YouTubeRefusalGate } from "./youtubeRateLimit";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
@@ -42,5 +42,29 @@ describe("YouTube rate-limit detection", () => {
 
     globalThis.fetch = (async () => new Response("limited", { status: 429 })) as unknown as typeof fetch;
     await expect(fetchVideoPublishedAt("video-rate-limit-test")).rejects.toThrow("429");
+  });
+});
+
+describe("YouTube address refusal gate", () => {
+  test("backs off adaptively and resets after a real answer", () => {
+    let now = 0;
+    const events: string[] = [];
+    const gate = new YouTubeRefusalGate(() => now, { warn: (event: string) => events.push(event), info: (event: string) => events.push(event) } as any);
+    gate.enter();
+    expect(gate.refused(new Error("LOGIN_REQUIRED: Sign in to confirm you're not a bot")).retryAt).toBe(90_000);
+    expect(() => gate.enter()).toThrow(YouTubeRefusalError);
+    now = 90_000;
+    gate.enter();
+    expect(gate.refused(new Error("429")).retryAt).toBe(270_000);
+    now = 270_000;
+    gate.enter();
+    expect(gate.refused(new Error("429")).retryAt).toBe(630_000);
+    gate.answered();
+    expect(events).toEqual(["youtube.refusal_started", "youtube.refusal_lifted"]);
+  });
+
+  test("recognizes the first aggregate LOGIN_REQUIRED error without treating private videos as refused", () => {
+    expect(isYouTubeRefusalError(new Error("video info failed: html=videoDetails missing (LOGIN_REQUIRED: Sign in to confirm you're not a bot)"))).toBe(true);
+    expect(isYouTubeRefusalError(new Error("videoDetails missing (LOGIN_REQUIRED: Private video)"))).toBe(false);
   });
 });

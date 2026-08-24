@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { database } from "./database";
-import { downloadCookieAttempts } from "./downloadStrategy";
+import { downloadCookieAttempts, isAnonymousAddressRefusal, recordDownloadAttempt } from "./downloadStrategy";
 import { fetchGoogleVideoResponse, safeGoogleVideoUrl } from "./audioUpstreamUrl";
 import { log } from "./logger";
 import { parseMediaSidx, type MediaSidxIndex } from "./mediaSidx";
+import { ytdlpAttemptArgs } from "./downloadConfig";
 import {
   createVideoVodPresentation,
   DIRECT_VIDEO_HLS_MAX_RANGE_BYTES,
@@ -72,7 +73,7 @@ interface DirectVideoSources {
 type SourceResolutionResult =
   | { kind: "sources"; sources: DirectVideoSources }
   | { kind: "unsupported" }
-  | { kind: "failed" };
+  | { kind: "failed"; anonymousRefused?: boolean };
 
 interface IndexedSource {
   fingerprint: string;
@@ -291,10 +292,9 @@ export function createDownloadVideoDirectStreaming(dependencies: DownloadVideoDi
       "-f", await formatSelector(userId),
       "--dump-single-json",
     ];
-    if (useCookies) args.push("--cookies", downloadCookiesFile(userId));
     let process: ReturnType<typeof Bun.spawn>;
     try {
-      process = spawn([YTDLP, ...args], { stdout: "pipe", stderr: "pipe" });
+      process = spawn([YTDLP, ...ytdlpAttemptArgs(args, useCookies, useCookies ? downloadCookiesFile(userId) : null)], { stdout: "pipe", stderr: "pipe" });
     } catch {
       return { kind: "failed" };
     }
@@ -314,7 +314,7 @@ export function createDownloadVideoDirectStreaming(dependencies: DownloadVideoDi
         });
         return /requested format (?:is )?not available/i.test(stderr)
           ? { kind: "unsupported" }
-          : { kind: "failed" };
+          : { kind: "failed", anonymousRefused: !useCookies && isAnonymousAddressRefusal(stderr) };
       }
       if (!stdout.trim()) return { kind: "failed" };
       try {
@@ -336,9 +336,14 @@ export function createDownloadVideoDirectStreaming(dependencies: DownloadVideoDi
     const operation = requestSignal(signal, resolveTimeoutMs, "direct video source timeout");
     try {
       let failed = false;
-      for (const useCookies of downloadCookieAttempts(downloadCookiesConfigured(userId))) {
+      let anonymousRefused = false;
+      for (const useCookies of downloadCookieAttempts(downloadCookiesConfigured(userId), userId)) {
         const result = await resolveAttempt(userId, videoId, useCookies, operation.signal);
-        if (result.kind === "sources") return result;
+        anonymousRefused ||= result.kind === "failed" && Boolean(result.anonymousRefused);
+        if (result.kind === "sources") {
+          recordDownloadAttempt(userId, useCookies, true, anonymousRefused);
+          return result;
+        }
         if (result.kind === "failed") failed = true;
         if (operation.signal.aborted) return { kind: "failed" };
       }

@@ -172,7 +172,9 @@ describe("audio streaming integration", () => {
     const response = await audio.getAudioResponse(1, "video", "bytes=0-0");
     expect(response?.status).toBe(206);
     expect(spawns).toBe(2);
-    expect(fetches).toBe(2);
+    // Fresh signed URLs may take a moment before Googlevideo accepts them;
+    // retry the same URL before paying for another yt-dlp resolution.
+    expect(fetches).toBe(6);
   });
 
   test("follows a bounded, revalidated googlevideo redirect and preserves Range", async () => {
@@ -281,9 +283,8 @@ describe("audio streaming integration", () => {
     const second = audio.getAudioResponse(1, "video", "bytes=0-0");
     while (staleFetches < 2) await Promise.resolve();
     releaseFirstStale();
-    expect((await first)?.status).toBe(206);
     releaseLateStale();
-
+    expect((await first)?.status).toBe(206);
     expect((await second)?.status).toBe(206);
     expect(spawns).toBe(2);
   });

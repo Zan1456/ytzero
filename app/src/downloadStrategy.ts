@@ -22,9 +22,46 @@ export function downloadFormat(quality: string, compatible = false): string {
  * Token is unavailable. Public videos therefore use the anonymous client
  * first; configured cookies remain a fallback for account-gated content.
  */
-export function downloadCookieAttempts(cookiesConfigured: boolean): boolean[] {
-  return cookiesConfigured ? [false, true] : [false];
+const COOKIE_PREFERENCE_TTL_MS = 15 * 60_000;
+const cookieFirstUntil = new Map<number, number>();
+
+/** yt-dlp's final line identifies an address refusal, unlike ordinary format,
+ * network, or cookie failures. Never use a broad "failed" signal here. */
+export function isAnonymousAddressRefusal(stderr: string): boolean {
+  return /(?:LOGIN_REQUIRED[\s\S]*(?:sign in|confirm you(?:'|’)re not a bot)|(?:sign in|confirm you(?:'|’)re not a bot)[\s\S]*LOGIN_REQUIRED|confirm you(?:'|’)re not a bot)/i.test(stderr);
 }
+
+export function redactYtdlpDiagnostic(value: string): string {
+  return value
+    .replace(/https?:\/\/\S+/gi, "<redacted-url>")
+    .replace(/\/(?:Users|home)\/[^\s'"\]]+/g, "<local-path>")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
+}
+
+export function downloadCookieAttempts(cookiesConfigured: boolean, userId = 0, now = Date.now()): boolean[] {
+  if (!cookiesConfigured) return [false];
+  return (cookieFirstUntil.get(userId) ?? 0) > now ? [true, false] : [false, true];
+}
+
+/** Record only completed attempts. Cookies become first only when they actually
+ * rescued a recognised anonymous refusal for the same profile. */
+export function recordDownloadAttempt(
+  userId: number,
+  useCookies: boolean,
+  succeeded: boolean,
+  anonymousRefused: boolean,
+  now = Date.now(),
+): void {
+  if (!useCookies && succeeded) {
+    cookieFirstUntil.delete(userId);
+  } else if (useCookies && succeeded && anonymousRefused) {
+    cookieFirstUntil.set(userId, now + COOKIE_PREFERENCE_TTL_MS);
+  }
+}
+
+export function resetDownloadAttemptPreferences(): void { cookieFirstUntil.clear(); }
 
 function sanitizePathComponent(segment: string): string {
   return segment

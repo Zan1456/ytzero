@@ -14,10 +14,15 @@ import { videoExistsStmt, videoSelect, type VideoRow } from "../videoRoutesSuppo
 import { registerVideoCommentRoutes } from "./videoCommentRoutes";
 import { persistDirectVideoInfo } from "../videoInfoPersistence";
 import { refreshExternalWatchVideo } from "../externalVideoRefresh";
+import { isYouTubeRefusalError, youtubeRefusalGate } from "../youtubeRateLimit";
 
 type ApiEnvironment = { Variables: { userId: number; sessionAdmin?: boolean; profileAdmin?: boolean } };
 type Api = Hono<ApiEnvironment>;
 type ApiContext = Context<ApiEnvironment>;
+
+const relatedRefreshSuppression = new Map<string, { kind: "empty" | "refused"; until: number }>();
+const RELATED_EMPTY_TTL_MS = 6 * 60 * 60_000;
+const RELATED_REFUSED_TTL_MS = 90_000;
 
 export function registerVideoRoutes(
   api: Api,
@@ -193,16 +198,29 @@ api.get("/videos/:id/info", async (c) => {
   if (childLocalOnly(uid) && !await videoExistsStmt.get(c.req.param("id"))) {
     return c.json({ error: "restricted" }, 403);
   }
+  const videoId = c.req.param("id");
+  const relatedRefresh = c.req.query("related") === "1";
+  const suppressed = relatedRefreshSuppression.get(videoId);
+  if (relatedRefresh && suppressed && suppressed.until > Date.now()) {
+    return c.json({ info: null, related_refresh: suppressed.kind, retry_at: suppressed.until });
+  }
+  if (suppressed) relatedRefreshSuppression.delete(videoId);
   try {
-    const info = await fetchVideoInfo(c.req.param("id"));
+    const info = await fetchVideoInfo(videoId);
     if (childHidesLive(uid) && info.liveStatus !== "none") {
       return c.json({ error: "live streams are disabled for this profile" }, 403);
     }
     // Channel avatar + the channel's recent uploads (for the "related" panel).
-    const [about, feed] = await Promise.all([
-      fetchChannelAbout(info.channelId).catch(() => null),
-      fetchChannelFeed(info.channelId).catch(() => null),
+    const [aboutResult, feedResult] = await Promise.allSettled([
+      fetchChannelAbout(info.channelId), fetchChannelFeed(info.channelId),
     ]);
+    const about = aboutResult.status === "fulfilled" ? aboutResult.value : null;
+    const feed = feedResult.status === "fulfilled" ? feedResult.value : null;
+    if (relatedRefresh && feedResult.status === "rejected" && isYouTubeRefusalError(feedResult.reason)) {
+      const until = Date.now() + RELATED_REFUSED_TTL_MS;
+      relatedRefreshSuppression.set(videoId, { kind: "refused", until });
+      return c.json({ info: null, related_refresh: "refused", retry_at: until }, 503);
+    }
     const avatar = about?.avatar ?? "";
 
     // Upsert channel: insert as external if new, or update avatar if missing
@@ -243,8 +261,18 @@ api.get("/videos/:id/info", async (c) => {
       inserted: !existing,
       relatedImported: feed?.videos.length ?? 0,
     });
-    return c.json({ info });
+    if (relatedRefresh && feed && feed.videos.length === 0) {
+      const until = Date.now() + RELATED_EMPTY_TTL_MS;
+      relatedRefreshSuppression.set(videoId, { kind: "empty", until });
+      return c.json({ info, related_refresh: "empty", retry_at: until });
+    }
+    return c.json({ info, related_refresh: "loaded" });
   } catch (e) {
+    if (isYouTubeRefusalError(e)) {
+      const until = Math.max(Date.now() + RELATED_REFUSED_TTL_MS, youtubeRefusalGate.nextRetryAt());
+      relatedRefreshSuppression.set(videoId, { kind: "refused", until });
+      return c.json({ error: "YouTube is temporarily refusing this address", code: "youtube_refused", retry_at: until }, 503);
+    }
     log.error("external.video_info_failed", { videoId: c.req.param("id"), error: e instanceof Error ? e.message : String(e) });
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 502);
   }

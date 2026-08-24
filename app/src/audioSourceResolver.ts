@@ -1,12 +1,14 @@
 import { AudioSourceCache, audioSourceKey } from "./audioSourceCache";
 import { defaultAudioDiagnostic, type AudioDiagnostic } from "./audioDiagnostics";
-import { downloadCookieAttempts } from "./downloadStrategy";
+import { downloadCookieAttempts, isAnonymousAddressRefusal, recordDownloadAttempt, redactYtdlpDiagnostic } from "./downloadStrategy";
 import { safeGoogleVideoUrl } from "./audioUpstreamUrl";
+import { ytdlpAttemptArgs } from "./downloadConfig";
 
 export interface AudioSource {
   url: string;
   mime: string;
   expiresAt: number;
+  issuedAt?: number;
 }
 
 interface AudioResolution {
@@ -50,7 +52,7 @@ export function createAudioSourceResolver(dependencies: AudioSourceResolverDepen
     videoId: string,
     useCookies: boolean,
     signal: AbortSignal,
-  ): Promise<AudioSource | null> {
+  ): Promise<{ source: AudioSource | null; anonymousRefused: boolean }> {
     const reportFailure = (reason: string, extra: Record<string, number | string> = {}) => {
       audioDiagnostic("warn", "audio.source_attempt_failed", {
         userId, videoId, reason, usedCookies: useCookies, ...extra,
@@ -63,15 +65,14 @@ export function createAudioSourceResolver(dependencies: AudioSourceResolverDepen
       "--print", "urls",
       "--print", "%(ext)s",
     ];
-    if (useCookies) args.push("--cookies", downloadCookiesFile(userId));
-    if (signal.aborted) return null;
+    if (signal.aborted) return { source: null, anonymousRefused: false };
 
     let process: ReturnType<typeof Bun.spawn>;
     try {
-      process = spawn([YTDLP, ...args], { stdout: "pipe", stderr: "pipe" });
+      process = spawn([YTDLP, ...ytdlpAttemptArgs(args, useCookies, useCookies ? downloadCookiesFile(userId) : null)], { stdout: "pipe", stderr: "pipe" });
     } catch {
       reportFailure("spawn_failed");
-      return null;
+      return { source: null, anonymousRefused: false };
     }
 
     let timedOut = false;
@@ -80,35 +81,35 @@ export function createAudioSourceResolver(dependencies: AudioSourceResolverDepen
     signal.addEventListener("abort", onAbort, { once: true });
     const timer = setTimeout(() => { timedOut = true; stop(); }, AUDIO_RESOLVE_TIMEOUT_MS);
     try {
-      const [stdout, , exitCode] = await Promise.all([
+      const [stdout, stderr, exitCode] = await Promise.all([
         new Response(process.stdout as ReadableStream<Uint8Array>).text(),
         new Response(process.stderr as ReadableStream<Uint8Array>).text(),
         process.exited,
       ]);
-      if (signal.aborted) return null;
+      if (signal.aborted) return { source: null, anonymousRefused: false };
       if (timedOut) {
         reportFailure("timeout");
-        return null;
+        return { source: null, anonymousRefused: false };
       }
       if (exitCode !== 0) {
-        reportFailure("ytdlp_exit", { exitCode });
-        return null;
+        reportFailure("ytdlp_exit", { exitCode, detail: redactYtdlpDiagnostic(stderr.split(/\r?\n/).filter(Boolean).at(-1) ?? "") });
+        return { source: null, anonymousRefused: !useCookies && isAnonymousAddressRefusal(stderr) };
       }
       const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
       const url = safeGoogleVideoUrl(lines[0] ?? "");
       const extension = lines[1] ?? "m4a";
       if (!url) {
         reportFailure("missing_or_rejected_url");
-        return null;
+        return { source: null, anonymousRefused: false };
       }
       if (extension !== "m4a" && extension !== "mp4") {
         reportFailure("unsupported_extension");
-        return null;
+        return { source: null, anonymousRefused: false };
       }
-      return { url, mime: "audio/mp4", expiresAt: audioUrlExpiry(url) };
+      return { source: { url, mime: "audio/mp4", expiresAt: audioUrlExpiry(url), issuedAt: Date.now() }, anonymousRefused: false };
     } catch {
       if (!signal.aborted) reportFailure("process_io_failed");
-      return null;
+      return { source: null, anonymousRefused: false };
     } finally {
       clearTimeout(timer);
       signal.removeEventListener("abort", onAbort);
@@ -124,10 +125,14 @@ export function createAudioSourceResolver(dependencies: AudioSourceResolverDepen
       return null;
     }
     let attempts = 0;
-    for (const useCookies of downloadCookieAttempts(downloadCookiesConfigured(userId))) {
+    let anonymousRefused = false;
+    for (const useCookies of downloadCookieAttempts(downloadCookiesConfigured(userId), userId)) {
       attempts++;
-      const source = await runResolverAttempt(userId, videoId, useCookies, signal);
+      const result = await runResolverAttempt(userId, videoId, useCookies, signal);
+      anonymousRefused ||= result.anonymousRefused;
+      const source = result.source;
       if (source) {
+        recordDownloadAttempt(userId, useCookies, true, anonymousRefused);
         audioDiagnostic("info", "audio.source_resolved", {
           userId, videoId, attempts, usedCookies: useCookies, mime: source.mime, ms: Date.now() - startedAt,
         });

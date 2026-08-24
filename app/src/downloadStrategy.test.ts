@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { downloadCookieAttempts, downloadFormat, renderDownloadOutputTemplate } from "./downloadStrategy";
+import { downloadCookieAttempts, downloadFormat, recordDownloadAttempt, renderDownloadOutputTemplate, resetDownloadAttemptPreferences } from "./downloadStrategy";
+import { afterEach } from "bun:test";
+
+afterEach(() => resetDownloadAttemptPreferences());
 
 describe("download strategy", () => {
   test("caps every format fallback at the selected quality", () => {
@@ -22,6 +25,15 @@ describe("download strategy", () => {
   test("tries public extraction before configured cookies", () => {
     expect(downloadCookieAttempts(true)).toEqual([false, true]);
     expect(downloadCookieAttempts(false)).toEqual([false]);
+  });
+
+  test("prefers cookies only after they rescue an anonymous address refusal", () => {
+    expect(downloadCookieAttempts(true, 1, 0)).toEqual([false, true]);
+    recordDownloadAttempt(1, true, true, true, 0);
+    expect(downloadCookieAttempts(true, 1, 1)).toEqual([true, false]);
+    expect(downloadCookieAttempts(true, 2, 1)).toEqual([false, true]);
+    recordDownloadAttempt(1, false, true, false, 1);
+    expect(downloadCookieAttempts(true, 1, 2)).toEqual([false, true]);
   });
 
   test("renders playlist context only when the download supplies it", () => {

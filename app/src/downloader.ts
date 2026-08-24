@@ -2,7 +2,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, rmdirSync,
 import { basename, dirname, join, resolve } from "node:path";
 import { database } from "./database";
 import { DB_PATH, getSetting, setSetting } from "./db";
-import { downloadCookieAttempts, downloadFormat, renderDownloadOutputTemplate } from "./downloadStrategy";
+import { downloadCookieAttempts, downloadFormat, isAnonymousAddressRefusal, recordDownloadAttempt, renderDownloadOutputTemplate } from "./downloadStrategy";
 import { log } from "./logger";
 import { beginMutation, maintenanceActive } from "./maintenance";
 import { publishAppEvent } from "./appEvents";
@@ -23,6 +23,7 @@ import {
   migrateLegacyDownloadCookies,
   profileDownloadsEnabled,
   ytdlpJavascriptRuntimeStatus,
+  ytdlpAttemptArgs,
   ytdlpStatus,
   type DlSettings,
 } from "./downloadConfig";
@@ -743,19 +744,19 @@ async function runDownload(userId: number, videoId: string, s: DlSettings) {
   notifyDownloadChanged(videoId);
   log.info("downloads.start", { videoId, quality: s.quality, compatibleFormat: s.compatible_format === 1, base });
 
-  const cookieAttempts = downloadCookieAttempts(downloadCookiesConfigured(userId));
+  const cookieAttempts = downloadCookieAttempts(downloadCookiesConfigured(userId), userId);
   let job: ActiveDownload | null = null;
   let code = 1;
   let stderrTail: string[] = [];
+  let anonymousRefused = false;
 
   for (let attemptIndex = 0; attemptIndex < cookieAttempts.length; attemptIndex++) {
     const useCookies = cookieAttempts[attemptIndex];
     const args = [...baseArgs];
-    if (useCookies) args.push("--cookies", downloadCookiesFile(userId));
 
     let proc: ReturnType<typeof Bun.spawn>;
     try {
-      proc = Bun.spawn([YTDLP, ...args], { stdout: "pipe", stderr: "pipe" });
+      proc = Bun.spawn([YTDLP, ...ytdlpAttemptArgs(args, useCookies, useCookies ? downloadCookiesFile(userId) : null)], { stdout: "pipe", stderr: "pipe" });
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       await database.prepare("UPDATE downloads SET status = 'error', error = ? WHERE video_id = ?").run(error, videoId);
@@ -794,6 +795,9 @@ async function runDownload(userId: number, videoId: string, s: DlSettings) {
     } catch {}
     code = await proc.exited;
     stderrTail = attemptStderr;
+
+    if (!useCookies && code !== 0) anonymousRefused ||= isAnonymousAddressRefusal(stderrTail.at(-1) ?? "");
+    if (code === 0) recordDownloadAttempt(userId, useCookies, true, anonymousRefused);
 
     if (code === 0 || job.cancelled || job.preempted) break;
     if (cookieAttempts[attemptIndex + 1]) {

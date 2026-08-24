@@ -15,6 +15,7 @@ import {
 import { log } from "../logger";
 import { fetchVideoInfo } from "../youtube";
 import { persistDirectVideoInfo } from "../videoInfoPersistence";
+import { isYouTubeRefusalError } from "../youtubeRateLimit";
 
 type ApiEnvironment = { Variables: { userId: number; sessionAdmin?: boolean; profileAdmin?: boolean } };
 type Api = Hono<ApiEnvironment>;
@@ -45,6 +46,7 @@ async function refreshAudioVideoState(videoId: string, source: string): Promise<
     }
     return current;
   } catch (error) {
+    if (isYouTubeRefusalError(error)) return previous;
     log.warn("audio.live_status_probe_failed", {
       videoId,
       source,
