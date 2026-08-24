@@ -10,7 +10,7 @@ import { useI18n } from "../i18n";
 import { useDocumentTitle } from "../useDocumentTitle";
 import { parseVideoDurationSeconds } from "../components/VideoCard";
 import { img } from "../img";
-import { resolvePlayerKind, shouldLatchCompletedDownload, type WatchSourceMode } from "./watchPlayerMode";
+import { resolvePlayerKind, shouldFallbackToDirectStream, shouldLatchCompletedDownload, type WatchSourceMode } from "./watchPlayerMode";
 import { normalizeSponsorSegments } from "../sponsorblock";
 import { markYouTubeUrl } from "../youtubeUrl";
 import { DEFAULT_SCREENSHOT_FILENAME_TEMPLATE, parsePlayerScreenshotFormat } from "../playerScreenshot";
@@ -110,6 +110,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
     childDownloadsOnly: boolean;
     downloadWatchMode: WatchSourceMode;
     experimentalStreaming: boolean;
+    defaultPlayer: "youtube" | "direct";
   }>({
     ready: false,
     downloadsEnabled: false,
@@ -117,6 +118,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
     childDownloadsOnly: false,
     downloadWatchMode: "youtube",
     experimentalStreaming: false,
+    defaultPlayer: "youtube",
   });
   const {
     ready: playbackPolicyReady,
@@ -125,6 +127,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
     childDownloadsOnly,
     downloadWatchMode,
     experimentalStreaming,
+    defaultPlayer,
   } = playbackPolicy;
   const [descOpen, setDescOpen] = useState(false);
   const [descExpandable, setDescExpandable] = useState(false);
@@ -157,7 +160,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
   // "auto" plays the local file when one exists; "youtube" forces the iframe.
   const [playerSource, setPlayerSource] = useState<"auto" | "youtube">("auto");
   // watch_source_mode = "ask"/"download": what the viewer decided for THIS video.
-  const [sourceChoice, setSourceChoice] = useState<"undecided" | "youtube" | "wait">("undecided");
+  const [sourceChoice, setSourceChoice] = useState<"undecided" | "remote" | "wait">("undecided");
   // Current position of the experimental stream, so the handoff to the local
   // file (once the background download finishes) resumes at the same spot.
   // The viewer left the experimental stream for their configured player.
@@ -169,6 +172,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
   const [downloadReadyToReload, setDownloadReadyToReload] = useState(false);
   const [youtubeAutoplayBlocked, setYoutubeAutoplayBlocked] = useState(false);
   const [youtubeError, setYoutubeError] = useState<number | null>(null);
+  const [directFallback, setDirectFallback] = useState(false);
   const downloadPollGenerationRef = useRef(0);
   // Path to the next playlist video, read by the player's onStateChange when a
   // video ends. A ref keeps the player effect free of playlist dependencies.
@@ -263,6 +267,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
         if (configuredMode === "ask" || configuredMode === "download") downloadWatchMode = configuredMode;
       }
       const experimentalStreaming = downloadsEnabled && Number(downloadConfig?.settings.experimental_streaming) === 1;
+      const defaultPlayer = downloadConfig?.settings.default_player === "direct" ? "direct" : "youtube";
       if (cancelled) return;
       setPrefetchNextPlaylistVideo(downloadsEnabled && Number(downloadConfig?.settings.prefetch_next_playlist_video) === 1);
       setDownloadSubtitleLanguages(subtitleLanguages);
@@ -273,6 +278,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
         childDownloadsOnly: !!(childStatus?.is_child && childStatus.downloads_only),
         downloadWatchMode,
         experimentalStreaming,
+        defaultPlayer,
       });
     })();
     return () => { cancelled = true; };
@@ -290,6 +296,8 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
     downloadStatus,
     localMediaSource: matchingVideo?.local_media_source,
     playerSource,
+    defaultPlayer,
+    directFallback,
     playbackPolicyReady,
     childDownloadsOnly,
     sourceChoice,
@@ -314,7 +322,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
   });
   const audioActive = audioModeRequested && audioModeAvailable;
   // Both "local" and "stream" render the LocalPlayer component (same layout).
-  const usingLocal = !audioActive && (playerKind === "local" || playerKind === "stream") && !membersOnlyNotice && !privateVideoNotice;
+  const usingLocal = !audioActive && (playerKind === "local" || playerKind === "stream" || playerKind === "direct") && !membersOnlyNotice && (playerKind === "direct" || !privateVideoNotice);
   const sharedTimestamp = Number(new URLSearchParams(location.search).get("t"));
   const sharedStartSeconds = Number.isFinite(sharedTimestamp) ? Math.max(0, Math.floor(sharedTimestamp)) : 0;
   const {
@@ -465,7 +473,8 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
 
   const chooseYouTube = useCallback(() => {
     setYoutubeAutoplayBlocked(false);
-    setSourceChoice("youtube");
+    setDirectFallback(false);
+    setSourceChoice("remote");
   }, []);
 
   useEffect(() => { setSkipStreaming(false); }, [id]);
@@ -478,9 +487,17 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
     setSkipStreaming(true);
   }, [capturePlaybackPosition]);
 
+  const exitDirectStream = useCallback(() => {
+    capturePlaybackPosition();
+    setDirectFallback(false);
+    setPlayerSource("youtube");
+  }, [capturePlaybackPosition]);
+
   useEffect(() => {
     setYoutubeError(null);
   }, [id, playerKind]);
+
+  useEffect(() => { setDirectFallback(false); }, [id]);
 
   // Effective playback rate: per-channel override, else the global default.
   // Kept in a ref so the player effect can read it without re-creating the player.
@@ -869,7 +886,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
 
     if (membersOnlyNotice) return;
 
-    if (playerKind === "local" || playerKind === "stream" || audioActive) {
+    if (playerKind === "local" || playerKind === "stream" || playerKind === "direct" || audioActive) {
       // LocalPlayer renders the <video> itself and fills playerRef via its ref.
       // In "stream" mode the duration is unknown, so poll() self-skips progress
       // saving and auto-archive — SponsorBlock/resume just wait for the download.
@@ -966,7 +983,13 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
             }
           },
           onError: (e: any) => {
-            if (!destroyed) setYoutubeError(Number(e?.data) || null);
+            if (destroyed) return;
+            const code = Number(e?.data) || null;
+            setYoutubeError(code);
+            if (shouldFallbackToDirectStream(code)) {
+              capturePlaybackPosition();
+              setDirectFallback(true);
+            }
           },
         },
       });
@@ -1117,7 +1140,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
       else if (matches("previousVideo", e)) { e.preventDefault(); if (!e.repeat && !watchTogetherRoomId && previousPlaylistPath) navigate(previousPlaylistPath); }
       else if (matches("nextVideo", e)) { e.preventDefault(); if (!e.repeat && canPlayNextVideo) playNextVideo(); }
       else if (matches("close", e)) { e.preventDefault(); closeWatchMode(); }
-      else if (matches("toggleFullscreen", e) && playerKind !== "local" && playerKind !== "stream") {
+      else if (matches("toggleFullscreen", e) && playerKind !== "local" && playerKind !== "stream" && playerKind !== "direct") {
         e.preventDefault();
         const el = playerWrapRef.current ?? document.documentElement;
         if (!document.fullscreenElement) el.requestFullscreen?.();
@@ -1400,6 +1423,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
     downloadSubtitleLanguages,
     downloadsEnabled,
     dismissUpNextVideo,
+    exitDirectStream,
     exitStreaming,
     goToUpNextVideo,
     handleEnded,

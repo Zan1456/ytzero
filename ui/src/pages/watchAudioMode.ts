@@ -1,6 +1,6 @@
 import type { PlayerKind } from "./watchPlayerMode";
 
-const AUDIO_PLAYER_KINDS = new Set<PlayerKind>(["stream", "local", "waiting", "choice", "youtube"]);
+const AUDIO_PLAYER_KINDS = new Set<PlayerKind>(["stream", "local", "direct", "waiting", "choice", "youtube"]);
 
 export function canUseWatchAudioMode({
   childProfile,

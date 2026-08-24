@@ -257,6 +257,11 @@ below.
   shared settings use domain keys named `downloads_*` and are serialized once
   through `instance.downloads`. Download cookies, downloaded media, queue
   progress, and physical file paths remain excluded.
+  The per-profile **Default player** preference is portable configuration in
+  `profile.downloads` schema v5. It chooses the YouTube embed or a direct,
+  memory-only progressive stream; signed source URLs, range buffers, and active
+  player state are transient and never exported. Older archives restore the
+  historical `youtube` default.
   Downloads' per-profile **Include Shorts** preference is portable
   configuration. It controls automatic feed and Watch later downloads; manual
   downloads remain an explicit, separate action.

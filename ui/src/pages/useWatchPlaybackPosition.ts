@@ -68,7 +68,7 @@ export function useWatchPlaybackPosition({
 
   useEffect(() => {
     if (!id || video?.video_id !== id || membersOnlyNotice || privateVideoNotice) return;
-    if (!audioActive && playerKind !== "local" && playerKind !== "stream" && playerKind !== "youtube") return;
+    if (!audioActive && playerKind !== "local" && playerKind !== "stream" && playerKind !== "direct" && playerKind !== "youtube") return;
     appliedSharedTargetRef.current = { videoId: id, seconds: sharedStartSeconds };
   }, [audioActive, id, membersOnlyNotice, playerKind, privateVideoNotice, sharedStartSeconds, video?.video_id]);
 

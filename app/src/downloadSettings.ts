@@ -33,6 +33,7 @@ export const DL_DEFAULTS = {
   quality: "1080",
   compatible_format: 0,
   watch_source_mode: "youtube",
+  default_player: "youtube",
   prefetch_next_playlist_video: 0,
   // HEAVILY EXPERIMENTAL: play a not-yet-downloaded video through a direct,
   // indexed HLS presentation while the normal download continues in the
@@ -101,6 +102,17 @@ export const DOWNLOADS_SETTINGS: DownloadSettingSource[] = [
       { value: "download", label: { en: "Always wait for the download", pl: "Zawsze czekaj na pobranie", de: "Immer auf den Download warten" } },
     ],
     defaultValue: DL_DEFAULTS.watch_source_mode,
+  },
+  {
+    key: "default_player",
+    type: "select",
+    label: { en: "Default player", pl: "Domyślny odtwarzacz", de: "Standardplayer" },
+    description: { en: "YouTube uses the embedded player. Direct stream plays a progressive MP4 without saving it; it is usually limited to 360p or 720p.", pl: "YouTube używa osadzonego odtwarzacza. Bezpośredni stream odtwarza progressive MP4 bez zapisu; zwykle jest ograniczony do 360p lub 720p.", de: "YouTube verwendet den eingebetteten Player. Direktstream spielt eine progressive MP4 ohne Speichern ab und ist meist auf 360p oder 720p begrenzt." },
+    options: [
+      { value: "youtube", label: { en: "YouTube embed", pl: "YouTube embed", de: "YouTube-Einbettung" } },
+      { value: "direct", label: { en: "Direct stream", pl: "Bezpośredni stream", de: "Direktstream" } },
+    ],
+    defaultValue: DL_DEFAULTS.default_player,
   },
   {
     key: "prefetch_next_playlist_video",

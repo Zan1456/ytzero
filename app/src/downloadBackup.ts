@@ -3,7 +3,7 @@ import { DOWNLOADS_ADMIN_SETTING_KEYS, downloadSettings, profileDownloadsEnabled
 import { listDownloadRules, restoreDownloadRules } from "./downloadRules";
 
 export const DOWNLOAD_INSTANCE_BACKUP_SCHEMA_VERSION = 1;
-export const DOWNLOAD_PROFILE_BACKUP_SCHEMA_VERSION = 4;
+export const DOWNLOAD_PROFILE_BACKUP_SCHEMA_VERSION = 5;
 
 export async function exportDownloadInstanceSettings() {
   const settings = (await downloadSettings(0)).settings;
@@ -31,9 +31,13 @@ export async function exportDownloadPreferences(userId: number) {
 export async function restoreDownloadPreferences(userId: number, value: unknown, legacyEnabled?: boolean): Promise<void> {
   const input = value && typeof value === "object" ? value as any : {};
   const settings = input.settings && typeof input.settings === "object" ? input.settings : {};
-  // Backups predating schema v4 did not carry this preference. Materialize the
-  // default during restore so they retain their historic cleanup behavior.
-  await setDownloadSettings(userId, { ...settings, ...(Object.hasOwn(settings, "keep_downloads") ? {} : { keep_downloads: 0 }) });
+  // Backups predating schema v4/v5 did not carry these preferences. Materialize
+  // their historic defaults during restore.
+  await setDownloadSettings(userId, {
+    ...settings,
+    ...(Object.hasOwn(settings, "keep_downloads") ? {} : { keep_downloads: 0 }),
+    ...(Object.hasOwn(settings, "default_player") ? {} : { default_player: "youtube" }),
+  });
   if (typeof input.enabled === "boolean") await setProfileDownloadsEnabled(userId, input.enabled);
   else if (typeof legacyEnabled === "boolean") await setProfileDownloadsEnabled(userId, legacyEnabled);
   for (const playlist of Array.isArray(input.playlists) ? input.playlists : []) {

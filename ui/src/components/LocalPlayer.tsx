@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
-import { Camera, Clapperboard, LoaderCircle, Maximize, Minimize, MonitorPlay, Pause, PictureInPicture2, Play, Volume2, VolumeX } from "lucide-react";
+import { ArrowDownToLine, Camera, Clapperboard, LoaderCircle, Maximize, Minimize, MonitorPlay, Pause, PictureInPicture2, Play, Volume2, VolumeX } from "lucide-react";
 import type { SponsorSegment, VideoChapter, VideoSubtitle } from "../api";
 import { api, SB_CATEGORIES } from "../api";
 import { subtitleLanguageLabel } from "../subtitleLanguages";
@@ -93,6 +93,8 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   // configured player (rendered as a centred button in the control bar).
   onExitStreaming?: () => void;
   exitStreamingLabel?: string;
+  onDownload?: () => void;
+  downloadLabel?: string;
 }>(function LocalPlayer({
   src,
   poster,
@@ -127,6 +129,8 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   onError,
   onExitStreaming,
   exitStreamingLabel,
+  onDownload,
+  downloadLabel,
 }, ref) {
   const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -759,6 +763,11 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
               </button>
               <span className="lp-spacer" />
             </>
+          )}
+          {!live && onDownload && (
+            <button className="lp-btn" onClick={onDownload} aria-label={downloadLabel} title={downloadLabel} disabled={transportLocked}>
+              <ArrowDownToLine size={19} />
+            </button>
           )}
           <SubtitlePicker
             videoId={videoId}

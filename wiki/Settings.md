@@ -21,7 +21,7 @@ access.
 - **Appearance** controls the interface language, application identity, video-card density, and watched-video style.
 - **Feed** controls the feed age window and visibility of Shorts, live, Upcoming, and members-only content. Shorts can be hidden, shown for selected channels, or shown for every followed channel; a channel opt-in affects only the main feed.
 - **Navigation** controls Shorts, top channels, and the order and visibility of sidebar destinations.
-- **Playback** controls related videos, on-demand comments, list continuation, player language, quality, speed, keyboard seeking, and automatic landscape fullscreen.
+- **Playback** controls related videos, on-demand comments, list continuation, player language, quality, speed, keyboard seeking, and automatic landscape fullscreen. Download configuration also offers a default remote player: YouTube embed or a direct, no-disk MP4 stream.
 - **Subtitles** controls caption defaults and presentation.
 - **Screenshots** controls captures made by the local player or YT Zero Enhance.
 - **Privacy** contains the optional SponsorBlock and [DeArrow](Privacy-and-License#dearrow) integrations. DeArrow titles and thumbnails are separate and both are disabled by default.

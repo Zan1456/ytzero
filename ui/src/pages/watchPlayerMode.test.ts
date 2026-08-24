@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { resolvePlayerKind, shouldLatchCompletedDownload } from "./watchPlayerMode";
+import { resolvePlayerKind, shouldFallbackToDirectStream, shouldLatchCompletedDownload } from "./watchPlayerMode";
 
 const base = {
   hasVideo: true,
   isLive: false,
   downloadStatus: null,
   playerSource: "auto" as const,
+  defaultPlayer: "youtube" as const,
+  directFallback: false,
   playbackPolicyReady: true,
   childDownloadsOnly: false,
   sourceChoice: "undecided" as const,
@@ -24,7 +26,7 @@ describe("resolvePlayerKind", () => {
   });
 
   test("honors each choice made in ask mode", () => {
-    expect(resolvePlayerKind({ ...base, watchMode: "ask", sourceChoice: "youtube" })).toBe("youtube");
+    expect(resolvePlayerKind({ ...base, watchMode: "ask", sourceChoice: "remote" })).toBe("youtube");
     expect(resolvePlayerKind({ ...base, watchMode: "ask", sourceChoice: "wait" })).toBe("waiting");
   });
 
@@ -66,7 +68,7 @@ describe("resolvePlayerKind", () => {
 
     test("lets the viewer fall back to YouTube", () => {
       expect(resolvePlayerKind({ ...base, streamingEnabled: true, playerSource: "youtube" })).toBe("youtube");
-      expect(resolvePlayerKind({ ...base, streamingEnabled: true, sourceChoice: "youtube" })).toBe("youtube");
+      expect(resolvePlayerKind({ ...base, streamingEnabled: true, sourceChoice: "remote" })).toBe("youtube");
     });
 
     test("does not stream for a downloads-only child profile", () => {
@@ -87,6 +89,25 @@ describe("resolvePlayerKind", () => {
     });
   });
 
+});
+
+describe("direct streaming", () => {
+  test("uses the direct player when it is the remote default and never for live video", () => {
+    expect(resolvePlayerKind({ ...base, defaultPlayer: "direct" })).toBe("direct");
+    expect(resolvePlayerKind({ ...base, defaultPlayer: "direct", isLive: true })).toBe("youtube");
+  });
+
+  test("falls back once from the embed only for its unavailable/embed-disabled errors", () => {
+    expect(resolvePlayerKind({ ...base, directFallback: true })).toBe("direct");
+    expect(shouldFallbackToDirectStream(100)).toBe(true);
+    expect(shouldFallbackToDirectStream(101)).toBe(true);
+    expect(shouldFallbackToDirectStream(150)).toBe(true);
+    expect(shouldFallbackToDirectStream(153)).toBe(false);
+  });
+
+  test("direct preference takes precedence over experimental downloading", () => {
+    expect(resolvePlayerKind({ ...base, defaultPlayer: "direct", streamingEnabled: true })).toBe("direct");
+  });
 });
 
 describe("shouldLatchCompletedDownload", () => {

@@ -5,7 +5,7 @@ import { database } from "../database";
 import { getUserSetting } from "../db";
 import { childLocalOnly, isChildUser } from "../childTime";
 import { DOWNLOADS_ADMIN_SETTING_KEYS, downloadCookiesConfigured, downloadSettings, profileDownloadsEnabled, removeDownloadCookies, saveDownloadCookies, setDownloadSettings, setProfileDownloadsEnabled } from "../downloadConfig";
-import { activeDownloadProgress, cancelAllPendingDownloads, downloadStats, downloadStatusSummary, enqueueDownload, fetchSubtitles, getDownload, getHlsPlaylist, getHlsResource, getHlsSegment, hasHlsSession, invalidateAudioSources, isSegmentName, listDownloads, listSubtitleFiles, liveStreamEnabled, prioritizeDownload, removeDownload, setDownloadPinned, srtToVtt, ytdlpJavascriptRuntimeStatus, ytdlpStatus } from "../downloader";
+import { activeDownloadProgress, cancelAllPendingDownloads, downloadStats, downloadStatusSummary, enqueueDownload, fetchSubtitles, getDirectVideoResponse, getDownload, getHlsPlaylist, getHlsResource, getHlsSegment, hasHlsSession, invalidateAudioSources, invalidateDirectVideoSources, isSegmentName, listDownloads, listSubtitleFiles, liveStreamEnabled, prioritizeDownload, removeDownload, setDownloadPinned, srtToVtt, ytdlpJavascriptRuntimeStatus, ytdlpStatus } from "../downloader";
 import { createDownloadRule, deleteDownloadRule, DownloadRuleValidationError, listDownloadRules, previewDownloadRule, updateDownloadRule, type DownloadRuleInput } from "../downloadRules";
 import { SUBTITLE_LANGUAGE_CODES } from "../subtitleLanguages";
 import { configuredTimeZone } from "../timeZone";
@@ -148,6 +148,7 @@ api.post("/downloads/cookies", async (c) => {
     if (!(file instanceof File)) return c.json({ error: "cookies.txt file required" }, 400);
     saveDownloadCookies(uid, await file.text());
     invalidateAudioSources(uid);
+    invalidateDirectVideoSources(uid);
     return c.json({ configured: true });
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
@@ -159,6 +160,7 @@ api.delete("/downloads/cookies", async (c) => {
   if (await isChildUser(uid)) return c.json({ error: "not allowed" }, 403);
   removeDownloadCookies(uid);
   invalidateAudioSources(uid);
+  invalidateDirectVideoSources(uid);
   return c.json({ configured: false });
 });
 
@@ -271,6 +273,27 @@ api.get("/videos/:id/stream", async (c) => {
     headers: { "Content-Type": contentType, "Accept-Ranges": "bytes", "Content-Length": String(size) },
   });
 });
+
+async function directStreamVideo(id: string) {
+  return await database.prepare("SELECT live_status, members_only FROM videos WHERE video_id = ?").get(id) as { live_status: string; members_only: number } | null;
+}
+
+async function directStreamResponse(c: ApiContext) {
+  const uid = currentUserId(c);
+  if (await isChildUser(uid)) return c.json({ error: "not allowed" }, 403);
+  const id = c.req.param("id");
+  if (!id) return c.json({ error: "not found" }, 404);
+  const video = await directStreamVideo(id);
+  if (!video) return c.json({ error: "not found" }, 404);
+  if (video.members_only === 1 || video.live_status === "live" || video.live_status === "upcoming") {
+    return c.json({ error: "direct stream unavailable" }, 409);
+  }
+  if (!await ytdlpStatus()) return c.json({ error: "yt-dlp unavailable" }, 503);
+  const response = await getDirectVideoResponse(uid, id, c.req.header("range") ?? null, c.req.raw.signal);
+  return response ?? c.json({ error: "direct stream unavailable" }, 502);
+}
+
+api.get("/videos/:id/direct-stream", directStreamResponse);
 
 // EXPERIMENTAL: play a not-yet-downloaded video through a validated fMP4 HLS
 // presentation. Unsupported source indexes fall back to on-demand ffmpeg TS

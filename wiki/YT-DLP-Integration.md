@@ -32,6 +32,13 @@ The **Opening a video** setting decides what happens when you open a video that 
 
 Choosing to wait queues the download with top priority: it preempts the currently running download, which resumes afterwards.
 
+The **Default player** setting chooses the remote player used when playback
+starts immediately. **YouTube embed** is the default. **Direct stream** uses
+yt-dlp to resolve a progressive MP4 and proxies only bounded byte ranges: it
+does not create a queue entry, use ffmpeg, or write a video file. It usually
+offers 360p or 720p. If the YouTube embed reports error 100, 101, or 150, YT
+Zero tries this stream once automatically.
+
 ## Configuration
 
 Open **Downloads → Configuration**. Most behavior is per profile, while options
@@ -99,6 +106,10 @@ yt-dlp and ffmpeg continue saving the normal local copy. Seeking beyond the
 downloaded region waits for the stream to catch up. It requires ffmpeg, uses
 H.264, and is currently limited to roughly 1080p; keep it disabled when
 reliability matters more than immediate playback.
+
+This differs from **Direct stream**, which never starts a download and never
+writes media to disk. Experimental streaming deliberately creates a full local
+copy in the background and can use ffmpeg as a fallback.
 
 **Reset plugin** removes the active profile's download ownership, rules, and
 plugin settings. Shared files survive while another profile still owns them;

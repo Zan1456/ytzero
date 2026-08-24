@@ -105,6 +105,7 @@ export default function WatchPage() {
     downloadsEnabled,
     dismissUpNextVideo,
     exitStreaming,
+    exitDirectStream,
     goToUpNextVideo,
     handleEnded,
     id,
@@ -240,7 +241,7 @@ export default function WatchPage() {
                     onEnded={video.live_status === "live" ? undefined : handleEnded} onReload={reload}
                   />
                 </Suspense>
-              ) : (privateVideoNotice || membersOnlyNotice) && video ? (
+              ) : (membersOnlyNotice || (privateVideoNotice && playerKind !== "direct")) && video ? (
                 <WatchRestrictedPlayer
                   kind={privateVideoNotice ? "private" : "members"}
                   thumbnailUrl={img(video.thumbnail)}
@@ -251,7 +252,7 @@ export default function WatchPage() {
                 />
               ) : playerKind === "stream" && video ? (
                 <LocalPlayer
-                  key={`${video.video_id}-stream-${sharedStartSeconds}`}
+                  key={`${video.video_id}-native-${sharedStartSeconds}`}
                   ref={playerRef}
                   live
                   liveLabel={t("watchStreamingBadge")}
@@ -286,11 +287,11 @@ export default function WatchPage() {
                   }}
                   onSubtitleSizeChange={changeSubtitleSize}
                 />
-              ) : playerKind === "local" && video ? (
+              ) : (playerKind === "local" || playerKind === "direct") && video ? (
                 <LocalPlayer
-                  key={`${video.video_id}-local-${sharedStartSeconds}`}
+                  key={`${video.video_id}-native-${sharedStartSeconds}`}
                   ref={playerRef}
-                  src={api.streamUrl(video.video_id)}
+                  src={playerKind === "direct" ? api.directStreamUrl(video.video_id) : api.streamUrl(video.video_id)}
                   poster={img(video.thumbnail)}
                   autoplay={!watchTogetherRoomId}
                   transportLocked={watchTogetherTransportLocked}
@@ -319,6 +320,9 @@ export default function WatchPage() {
                     bg: Number(settings?.player_sub_bg ?? 75),
                   }}
                   onSubtitleSizeChange={changeSubtitleSize}
+                  onError={playerKind === "direct" ? exitDirectStream : undefined}
+                  onDownload={playerKind === "direct" && downloadsEnabled && downloadStatus !== "queued" && downloadStatus !== "downloading" ? requestDownload : undefined}
+                  downloadLabel={t("downloadLocally")}
                 />
               ) : playerKind === "youtube" ? (
                 <div ref={ytWrapRef} className="watch-player-yt" />

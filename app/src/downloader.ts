@@ -8,6 +8,7 @@ import { beginMutation, maintenanceActive } from "./maintenance";
 import { publishAppEvent } from "./appEvents";
 import { notifyDownloadFailed } from "./notifications";
 import { createDownloadStreaming } from "./downloadStreaming";
+import { createDownloadVideoProgressiveStreaming } from "./downloadVideoProgressiveStreaming";
 import { autoDownloadFollowerExistsSql } from "./downloadEligibility";
 import { automaticDownloadCandidates, migrateLegacyDownloadAutomation } from "./downloadRules";
 import { enqueueScheduledDownloadsForUser } from "./scheduledDownloads";
@@ -886,7 +887,14 @@ const {
   ytdlpStatus,
 });
 
-export { destroyHlsSession, getAudioHeadResponse, getAudioResponse, getAudioVodPlaylist, getHlsPlaylist, getHlsResource, getHlsSegment, hasHlsSession, getLiveAudioPlaylist, getLiveAudioResource, invalidateAudioSources, isSegmentName, liveStreamEnabled, retryAudioSource };
+const { getDirectVideoResponse, invalidateDirectVideoSources } = createDownloadVideoProgressiveStreaming({
+  YTDLP,
+  downloadCookiesConfigured,
+  downloadCookiesFile,
+  ytdlpStatus,
+});
+
+export { destroyHlsSession, getAudioHeadResponse, getAudioResponse, getAudioVodPlaylist, getDirectVideoResponse, getHlsPlaylist, getHlsResource, getHlsSegment, hasHlsSession, getLiveAudioPlaylist, getLiveAudioResource, invalidateAudioSources, invalidateDirectVideoSources, isSegmentName, liveStreamEnabled, retryAudioSource };
 // ---------- scheduler ----------
 
 let ticking = false;
