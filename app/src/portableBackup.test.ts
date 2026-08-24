@@ -205,6 +205,42 @@ describe("portable backup classification and restore", () => {
     expect(JSON.parse(restored.playback_context_json)).toEqual(context);
   });
 
+  test("round-trips profile bookmarks idempotently and excludes them from setup backups", async () => {
+    const profile = (await backup.backupOptions()).profiles[0];
+    const bookmarkUuid = crypto.randomUUID();
+    db.prepare("INSERT INTO bookmarks(portable_uuid,user_id,video_id,position_seconds,description,created_at,updated_at) VALUES(?,1,'portable001',123.4,'Portable bookmark','2026-08-01 10:00:00','2026-08-02 11:00:00')")
+      .run(bookmarkUuid);
+
+    const setup = await backup.createPortableBackup({ preset: "setup", profiles: [profile.id] });
+    expect([...backup.readPortableZip(setup).values()].map((value) => decoder.decode(value)).join("\n")).not.toContain("Portable bookmark");
+
+    const zip = await backup.createPortableBackup({ preset: "full", profiles: [profile.id] });
+    const entries = backup.readPortableZip(zip);
+    const manifest = JSON.parse(decoder.decode(entries.get("manifest.json")!));
+    const section = manifest.sections.find((item: any) => item.id === "profile.bookmarks" && item.profileId === profile.id);
+    expect(section.schemaVersion).toBe(1);
+    expect(decoder.decode(entries.get(section.path)!)).toContain(bookmarkUuid);
+
+    db.prepare("DELETE FROM bookmarks WHERE user_id=1").run();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const analyzed = await backup.analyzePortableBackup(1, zip);
+      const plan = await backup.planPortableRestore(1, analyzed.sessionId, {
+        mappings: { [profile.id]: { action: "merge" as const, targetProfileId: 1 } },
+        sections: analyzed.manifest.sections.map((item) => item.id),
+        strategy: "merge",
+      });
+      await backup.commitPortableRestore(1, analyzed.sessionId, plan.planRevision);
+    }
+    expect(db.prepare("SELECT portable_uuid,position_seconds,description,created_at,updated_at FROM bookmarks WHERE user_id=1 AND video_id='portable001'").get()).toEqual({
+      portable_uuid: bookmarkUuid,
+      position_seconds: 123.4,
+      description: "Portable bookmark",
+      created_at: "2026-08-01 10:00:00",
+      updated_at: "2026-08-02 11:00:00",
+    });
+    expect((db.prepare("SELECT COUNT(*) AS n FROM bookmarks WHERE user_id=1 AND video_id='portable001'").get() as { n: number }).n).toBe(1);
+  });
+
   test("configuration export excludes authentication values and runtime tables", async () => {
     setSetting("auth_oidc_client_secret", "DO-NOT-EXPORT-THIS");
     setSetting("auth_shared_password_hash", "HASH-DO-NOT-EXPORT");

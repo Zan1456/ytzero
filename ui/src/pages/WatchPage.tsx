@@ -49,6 +49,7 @@ import VideoCreators from "../components/VideoCreators";
 import Tooltip from "../components/Tooltip";
 import { markYouTubeUrl } from "../youtubeUrl";
 import VideoComments from "../components/VideoComments";
+import BookmarkEditor from "../components/BookmarkEditor";
 import SocialShareDialog from "../components/social/SocialShareDialog";
 import { getWatchTogetherLabels, WatchTogetherJoinStatus, WatchTogetherPanelSlot } from "../components/social/WatchTogetherWatchUi";
 import WatchDescription from "../components/watch/WatchDescription";
@@ -89,6 +90,7 @@ export default function WatchPage() {
     cinemaVisible,
     copyKey,
     copyShareLink,
+    currentPlaybackSeconds,
     createPlaylist,
     creatorHandles,
     descExpandable,
@@ -505,6 +507,7 @@ export default function WatchPage() {
               <span className="btn-label">{t("like")}</span>
             </Button>
             <WatchPlayerModeToggle placement="actions" active={audioActive} available={audioModeAvailable} audioLabel={t("playerAudioMode")} videoLabel={t("playerAudioModeExit")} onToggle={(active) => { capturePlaybackPosition(); setAudioMode(active); }} />
+            <BookmarkEditor videoId={video.video_id} currentPlaybackSeconds={currentPlaybackSeconds} />
             <div className="watch-action-group watch-action-group--playback">
             <IconButton
               className="watch-action-desktop watch-action-medium"

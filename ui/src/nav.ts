@@ -1,4 +1,4 @@
-import { Archive, ArrowDownToLine, Clapperboard, Clock, Compass, HeartPulse, History, Home, ListVideo, Radio, Settings, ThumbsUp, UsersRound, type LucideIcon } from "lucide-react";
+import { Archive, ArrowDownToLine, Bookmark, Clapperboard, Clock, Compass, HeartPulse, History, Home, ListVideo, Radio, Settings, ThumbsUp, UsersRound, type LucideIcon } from "lucide-react";
 import type { I18nKey } from "./i18n";
 
 export type NavItem = { to: string; labelKey: I18nKey; icon: LucideIcon; end?: boolean };
@@ -14,12 +14,13 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/downloads", labelKey: "navDownloads", icon: ArrowDownToLine },
   { to: "/liked", labelKey: "navLiked", icon: ThumbsUp },
   { to: "/history", labelKey: "navHistory", icon: History },
+  { to: "/bookmarks", labelKey: "navBookmarks", icon: Bookmark },
   { to: "/archive", labelKey: "navArchive", icon: Archive },
   { to: "/insights", labelKey: "navInsights", icon: HeartPulse },
   { to: "/settings", labelKey: "navSettings", icon: Settings },
 ];
 
-export type NavConfigEntry = { key: string; hidden: boolean };
+export type NavConfigEntry = { key: string; hidden: boolean; disabled?: boolean };
 
 /**
  * Parse the persisted sidebar config (JSON string) into a clean, canonicalised
@@ -40,6 +41,7 @@ export function parseNavConfig(raw: string | undefined | null): NavConfigEntry[]
             // order/visibility when upgrading an existing nav configuration.
             key: e.key === "/discovery" ? "/recommendations" : e.key as string,
             hidden: !!e.hidden,
+            ...(e.disabled ? { disabled: true } : {}),
           }));
       }
     } catch { /* fall back to default below */ }
@@ -60,9 +62,13 @@ export function parseNavConfig(raw: string | undefined | null): NavConfigEntry[]
   return result;
 }
 
-/** Stable partition: visible entries first, hidden ones pushed to the bottom. */
+/** Stable partition: visible, overflow-hidden, then completely hidden entries. */
 export function normalizeNav(entries: NavConfigEntry[]): NavConfigEntry[] {
-  return [...entries.filter((e) => !e.hidden), ...entries.filter((e) => e.hidden)];
+  return [
+    ...entries.filter((e) => !e.hidden && !e.disabled),
+    ...entries.filter((e) => e.hidden && !e.disabled),
+    ...entries.filter((e) => e.disabled),
+  ];
 }
 
 /** Resolve a config into the ordered visible/hidden NavItems for the sidebar. */
@@ -71,6 +77,7 @@ export function splitNavItems(config: NavConfigEntry[]): { visible: NavItem[]; h
   const visible: NavItem[] = [];
   const hidden: NavItem[] = [];
   for (const e of config) {
+    if (e.disabled) continue;
     const item = byKey.get(e.key);
     if (!item) continue;
     (e.hidden ? hidden : visible).push(item);

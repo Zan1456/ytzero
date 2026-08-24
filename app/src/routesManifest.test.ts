@@ -41,7 +41,7 @@ describe("HTTP route manifest", () => {
     const retryAudioRoute = "POST /videos/:id/audio/retry";
     const ytdlpConfigRoute = "PUT /downloads/ytdlp/config";
     const ytdlpUpdateRoute = "POST /downloads/ytdlp/update";
-    expect(routes).toHaveLength(232);
+    expect(routes).toHaveLength(236);
     expect(routes).toContain(transcriptRoute);
     expect(routes).toContain(playbackAdjacentRoute);
     expect(routes).toContain(liveAudioRoute);
@@ -53,7 +53,7 @@ describe("HTTP route manifest", () => {
     expect(routes).toContain("POST /plugins/tubearchivist/sync");
     const legacyRoutes = routes.filter((route) => route !== transcriptRoute && route !== playbackAdjacentRoute && route !== liveAudioRoute && route !== vodAudioRoute && route !== retryAudioRoute && route !== ytdlpConfigRoute && route !== ytdlpUpdateRoute);
     expect(createHash("sha256").update(legacyRoutes.join("\n")).digest("hex"))
-      .toBe("41e8bc10839e472581c4b99528626dcf5e1880c97ade30ad49319e76074947fd");
+      .toBe("b509256cb7da96282e29051b998efa9ea649d0a75751a82dc589e718d718b330");
   });
 
   test("does not register duplicate method/path pairs", () => {

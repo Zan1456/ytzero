@@ -69,6 +69,7 @@ Everything in Setup and organization, plus:
 
 - queue/archive state, likes, watched flags, and playback progress
 - watch history
+- video bookmarks, their timestamps, and notes
 - optional Insights/Pulse history
 - optional Discovery feedback
 
@@ -111,6 +112,7 @@ profiles/<profile-uuid>/rules.jsonl
 profiles/<profile-uuid>/playlists.jsonl
 profiles/<profile-uuid>/video-state.jsonl
 profiles/<profile-uuid>/history.jsonl
+profiles/<profile-uuid>/bookmarks.jsonl
 profiles/<profile-uuid>/analytics/*.jsonl
 plugins/<plugin-id>/global.json
 plugins/<plugin-id>/profiles/<profile-uuid>.json
@@ -230,6 +232,9 @@ below.
   list playback is disabled, waits for confirmation, or starts automatically,
   plus whether it follows the visible list order or walks it in reverse. The
   active playback queue itself is transient router state and is never exported.
+  Sidebar navigation entries may be visible, kept under the overflow disclosure,
+  or completely hidden. This bounded tri-state is portable configuration in
+  `profile.settings` schema v6. Older backups retain their two-state meaning.
 - Personal playlist membership is portable organization data. Its source
   addition timestamp and stable playlist position are included in
   `profile.playlists` schema v2. Older schema v1 archives restore membership in
@@ -320,7 +325,8 @@ below.
   an implementation detail of the existing `profile.avatar` schema v1 section.
   Older PNG/JPEG/WebP archives remain accepted and are normalized during
   restore, while export continues to carry the current binary asset unchanged.
-- stable `portable_uuid` values on profiles, tags, and personal playlists are
+- stable `portable_uuid` values on profiles, tags, personal playlists, and
+  bookmarks are
   object identity metadata and travel only through their owning domain section.
 
 ### Portable personal state (opt-in)
@@ -332,6 +338,11 @@ below.
   restore drops a context whose referenced source cannot be mapped rather than
   broadening it to a different queue.
 - `history`.
+- `bookmarks`: one profile-owned return point per video, including a stable
+  UUID, playback timestamp, short note, and creation/update timestamps. It is
+  serialized through `profile.bookmarks` schema v1; merge is an idempotent
+  upsert by target profile and video, while replace clears the selected
+  profile's bookmarks before restoring them.
 - Social activity is portable personal state in the optional, versioned
   `plugin.social.activity` domain section. It contains stable post and comment
   UUIDs, shared video identifiers, plain-text bodies, arbitrary single-grapheme

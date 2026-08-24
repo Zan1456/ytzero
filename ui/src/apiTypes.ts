@@ -57,6 +57,23 @@ export interface Video {
   playback_context?: PlaybackQueueContext | null;
 }
 
+export interface Bookmark {
+  id: string;
+  video_id: string;
+  position_seconds: number;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookmarkVideo extends Video {
+  bookmark_id: string;
+  position_seconds: number;
+  bookmark_description: string;
+  bookmarked_at: string;
+  bookmark_updated_at: string;
+}
+
 export interface DeArrowBranding {
   title: string | null;
   thumbnail: string | null;

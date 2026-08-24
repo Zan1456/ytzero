@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "2026.08.34",
+      "name": "2026.08.34 — Fixed version",
+      "publishedAt": "2026-08-21T22:39:43Z",
+      "url": "https://github.com/Pelski/ytzero/releases/tag/2026.08.34",
+      "notes": [
+        "Fixed version (`4c30ed8`)",
+        "Bigger downloads limit (`e9a63b7`)",
+        "Hide tag in filters (`653a72b`)",
+        "Persist yt-dlp channel versions [#189](https://github.com/Pelski/ytzero/issues/189) (`32475d1`)",
+        "Keep downloads [#193](https://github.com/Pelski/ytzero/issues/193) (`7742135`)",
+        "Fixed versioning (43fceda)"
+      ],
+      "current": true
+    },
+    {
       "version": "2026.08.32",
       "name": "2026.08.32 — Fixed click to start video bounding box #192",
       "publishedAt": "2026-08-19T22:57:59Z",
@@ -91,15 +106,6 @@
       "url": "https://github.com/Pelski/ytzero/releases/tag/2026.08.24",
       "notes": [
         "One-click deployments are now better (`cee351f`)"
-      ]
-    },
-    {
-      "version": "2026.08.23",
-      "name": "2026.08.23 — Added first version of TubArchivist integration, Shortcuts on video player fixed #136",
-      "publishedAt": "2026-08-12T08:35:46Z",
-      "url": "https://github.com/Pelski/ytzero/releases/tag/2026.08.23",
-      "notes": [
-        "Added first version of TubArchivist integration, Shortcuts on video player fixed #136 (`b37d572`)"
       ]
     }
   ]

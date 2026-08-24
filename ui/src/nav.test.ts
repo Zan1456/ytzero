@@ -51,4 +51,16 @@ describe("recommendations navigation", () => {
       { key: "/recommendations", hidden: false },
     ]));
   });
+
+  test("keeps completely hidden entries configurable without rendering them in the sidebar", () => {
+    const parsed = parseNavConfig(JSON.stringify([
+      { key: "/history", hidden: false, disabled: true },
+      { key: "/bookmarks", hidden: false },
+    ]));
+    const split = splitNavItems(parsed);
+    expect(split.visible.some((item) => item.to === "/bookmarks")).toBe(true);
+    expect(split.visible.some((item) => item.to === "/history")).toBe(false);
+    expect(split.hidden.some((item) => item.to === "/history")).toBe(false);
+    expect(parsed.find((entry) => entry.key === "/history")?.disabled).toBe(true);
+  });
 });

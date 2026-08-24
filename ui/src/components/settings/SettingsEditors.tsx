@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { Archive, ArrowDownToLine, BookmarkPlus, Check, ChevronDown, ChevronUp, Clock, Eye, EyeOff, Filter, GripHorizontal, GripVertical, ListMusic, LoaderCircle, Lock, Pencil, Plus, Trash2, Tv, Undo2, X, Zap } from "lucide-react";
+import { Archive, ArrowDownToLine, Ban, BookmarkPlus, Check, ChevronDown, ChevronUp, Clock, Eye, EyeOff, Filter, GripHorizontal, GripVertical, ListMusic, LoaderCircle, Lock, Pencil, Plus, RotateCcw, Trash2, Tv, Undo2, X, Zap } from "lucide-react";
 import { api, type Channel, type FilterRule, type Profile, type Rule, type Tag, type UserPlaylist, type UserPlaylistRule, type Video } from "../../api";
 import { emit } from "../../events";
 import { formatVideoCount, useI18n, type I18nKey } from "../../i18n";
@@ -425,9 +425,12 @@ export function SidebarNavEditor({ value, onChange, excludedKeys = new Set<strin
   };
 
   const toggleHidden = (key: string) =>
-    onChange(value.map((v) => (v.key === key ? { ...v, hidden: !v.hidden } : v)));
+    onChange(value.map((v) => (v.key === key ? { ...v, hidden: v.disabled ? false : !v.hidden, disabled: false } : v)));
+  const toggleDisabled = (key: string) =>
+    onChange(value.map((v) => (v.key === key ? { ...v, hidden: false, disabled: !v.disabled } : v)));
 
-  const firstHidden = displayedValue.findIndex((e) => e.hidden);
+  const firstHidden = displayedValue.findIndex((e) => e.hidden && !e.disabled);
+  const firstDisabled = displayedValue.findIndex((e) => e.disabled);
 
   return (
     <div className={`sidebar-order-list${dragKey ? " is-dragging" : ""}`}>
@@ -440,9 +443,12 @@ export function SidebarNavEditor({ value, onChange, excludedKeys = new Set<strin
             {i === firstHidden && firstHidden > 0 && (
               <Divider label={t("hiddenItems")} />
             )}
+            {i === firstDisabled && firstDisabled > 0 && (
+              <Divider label={t("disabledItems")} />
+            )}
             <div
               ref={(el) => { if (el) itemRefs.current.set(entry.key, el); else itemRefs.current.delete(entry.key); }}
-              className={`sidebar-order-item${entry.hidden ? " is-hidden" : ""}${dragKey === entry.key ? " dragging" : ""}`}
+              className={`sidebar-order-item${entry.hidden || entry.disabled ? " is-hidden" : ""}${entry.disabled ? " is-disabled" : ""}${dragKey === entry.key ? " dragging" : ""}`}
               draggable
               onDragStart={(e) => { setDragKey(entry.key); e.dataTransfer.effectAllowed = "move"; }}
               onDragEnd={() => setDragKey(null)}
@@ -468,8 +474,11 @@ export function SidebarNavEditor({ value, onChange, excludedKeys = new Set<strin
                 <IconButton label={t("moveDown")} disabled={i === displayedValue.length - 1} onClick={() => move(i, i + 1)}>
                   <ChevronDown size={15} />
                 </IconButton>
-                <IconButton label={entry.hidden ? t("showItem") : t("hideItem")} onClick={() => toggleHidden(entry.key)}>
-                  {entry.hidden ? <EyeOff size={15} /> : <Eye size={15} />}
+                <IconButton label={entry.hidden || entry.disabled ? t("showItem") : t("hideItem")} onClick={() => toggleHidden(entry.key)}>
+                  {entry.hidden || entry.disabled ? <EyeOff size={15} /> : <Eye size={15} />}
+                </IconButton>
+                <IconButton label={entry.disabled ? t("restoreItem") : t("hideCompletely")} onClick={() => toggleDisabled(entry.key)}>
+                  {entry.disabled ? <RotateCcw size={15} /> : <Ban size={15} />}
                 </IconButton>
               </div>
             </div>

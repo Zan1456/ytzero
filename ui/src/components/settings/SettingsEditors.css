@@ -32,6 +32,7 @@
 .sidebar-order-item.dragging .sidebar-order-actions { opacity: 0.35; }
 
 .sidebar-order-item.is-hidden { opacity: 0.55; }
+.sidebar-order-item.is-disabled { border-style: dashed; opacity: 0.42; }
 
 .sidebar-order-grip {
   color: var(--text-3);

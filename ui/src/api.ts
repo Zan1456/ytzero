@@ -21,6 +21,8 @@ import {
   type AuthMethod,
   type AuthStatus,
   type BackupOptions,
+  type Bookmark,
+  type BookmarkVideo,
   type Bucket,
   type Channel,
   type ChannelAbout,
@@ -269,6 +271,11 @@ export const api = {
   watchlist: () => sharedGet<{ videos: Video[] }>("watchlist", "/watchlist"),
   archive: (page = 0) => http<{ videos: Video[] }>(`/archive?page=${page}`),
   history: (page = 0) => http<{ videos: Video[]; page: number; has_more: boolean }>(`/history?page=${page}`),
+  bookmarks: () => http<{ bookmarks: BookmarkVideo[] }>("/bookmarks"),
+  videoBookmark: (id: string) => http<{ bookmark: Bookmark | null }>(`/videos/${id}/bookmark`),
+  saveVideoBookmark: (id: string, input: { position_seconds: number; description: string }) =>
+    http<{ bookmark: Bookmark }>(`/videos/${id}/bookmark`, { method: "PUT", body: JSON.stringify(input) }),
+  removeVideoBookmark: (id: string) => http<{ ok: true }>(`/videos/${id}/bookmark`, { method: "DELETE" }),
   removeFromHistory: (historyId: number) => http<{ ok: true }>(`/history/${historyId}`, { method: "DELETE" }),
   insights: (days = 30, profileId: number | null = null) => {
     const qs = new URLSearchParams({ days: String(days), profile: profileId == null ? "all" : String(profileId) });

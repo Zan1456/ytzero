@@ -6,6 +6,7 @@ import type { PlaybackQueueContext } from "./playbackQueue";
 import { DelayedPageSkeleton } from "./components/LoadingState";
 
 const ArchivePage = lazy(() => import("./pages/ArchivePage"));
+const BookmarksPage = lazy(() => import("./pages/BookmarksPage"));
 const ChannelPage = lazy(() => import("./pages/ChannelPage"));
 const ChannelPlaylistPage = lazy(() => import("./pages/ChannelPlaylistPage"));
 const CleanupPage = lazy(() => import("./pages/CleanupPage"));
@@ -80,6 +81,7 @@ export default function AppRoutes({
         <Route path="/downloads" element={<DownloadsPage shortsEnabled={shortsEnabled} />} />
         <Route path="/liked" element={<LikedPage onPlay={onPlay} shortsEnabled={shortsEnabled} />} />
         <Route path="/history" element={<HistoryPage onPlay={onPlay} allowHistoryDeletion={childStatus?.is_child !== true} />} />
+        <Route path="/bookmarks" element={<BookmarksPage />} />
         <Route path="/archive" element={<ArchivePage onPlay={onPlay} />} />
         <Route path="/cleanup" element={<CleanupPage />} />
         <Route path="/insights" element={<InsightsPage shortsEnabled={shortsEnabled} />} />

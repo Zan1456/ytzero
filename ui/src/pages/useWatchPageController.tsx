@@ -324,6 +324,12 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
     audioActive, id, membersOnlyNotice, playerKind, playerRef,
     privateVideoNotice, sharedStartSeconds, video,
   });
+  const currentPlaybackSeconds = useCallback(() => resolveShareTimestamp(
+    enhancePlayerStateRef.current?.state.currentTime,
+    () => playerRef.current?.getCurrentTime?.(),
+    streamPositionRef.current,
+    progressRef.current?.position,
+  ), [progressRef, streamPositionRef]);
   const keyboardSeekSeconds = Math.max(1, Number(settings?.keyboard_seek_seconds ?? "5") || 5);
   const screenshotFormat = parsePlayerScreenshotFormat(settings?.player_screenshot_format);
   const screenshotQuality = Math.min(1, Math.max(0.1, Number(settings?.player_screenshot_quality) || 0.92));
@@ -1379,6 +1385,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
     cinemaVisible,
     copyKey,
     copyShareLink,
+    currentPlaybackSeconds,
     createPlaylist,
     creatorHandles,
     descExpandable,

@@ -302,6 +302,22 @@ CREATE TABLE IF NOT EXISTS user_videos (
 CREATE INDEX IF NOT EXISTS idx_user_videos_video ON user_videos(video_id);
 CREATE INDEX IF NOT EXISTS idx_user_videos_status ON user_videos(user_id, status);
 
+-- A profile-owned return point into a video. One bookmark per video keeps the
+-- watch-page action predictable: saving again updates the timestamp and note.
+CREATE TABLE IF NOT EXISTS bookmarks (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  portable_uuid    TEXT NOT NULL UNIQUE,
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  video_id         TEXT NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+  position_seconds REAL NOT NULL DEFAULT 0 CHECK (position_seconds >= 0),
+  description      TEXT NOT NULL DEFAULT '',
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, video_id)
+);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_user_updated ON bookmarks(user_id, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_video ON bookmarks(video_id);
+
 -- Per-profile settings (the global settings table keeps only app-wide keys).
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
