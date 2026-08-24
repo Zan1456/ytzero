@@ -5,7 +5,20 @@ describe("YouTube publication metadata", () => {
   test("parses relative publication labels returned by supported locales", () => {
     expect(parsePublishedTimeText("Streamed 3 weeks ago")).toEqual({ value: 3, unit: "week" });
     expect(parsePublishedTimeText("5 dni temu")).toEqual({ value: 5, unit: "day" });
+    expect(parsePublishedTimeText("1 dzień temu")).toEqual({ value: 1, unit: "day" });
     expect(parsePublishedTimeText("vor 2 Monaten")).toEqual({ value: 2, unit: "month" });
+    expect(parsePublishedTimeText("vor 1 Monat")).toEqual({ value: 1, unit: "month" });
+  });
+
+  test("parses French relative publication labels", () => {
+    expect(parsePublishedTimeText("il y a 3 jours")).toEqual({ value: 3, unit: "day" });
+    expect(parsePublishedTimeText("il y a 1 jour")).toEqual({ value: 1, unit: "day" });
+    expect(parsePublishedTimeText("il y a 2 semaines")).toEqual({ value: 2, unit: "week" });
+    expect(parsePublishedTimeText("il y a 1 mois")).toEqual({ value: 1, unit: "month" });
+    expect(parsePublishedTimeText("il y a 3 mois")).toEqual({ value: 3, unit: "month" });
+    expect(parsePublishedTimeText("il y a 1 an")).toEqual({ value: 1, unit: "year" });
+    expect(parsePublishedTimeText("il y a 2 ans")).toEqual({ value: 2, unit: "year" });
+    expect(parsePublishedTimeText("il y a 5 heures")).toEqual({ value: 5, unit: "hour" });
   });
 
   test("turns a relative label into an approximate historical date", () => {

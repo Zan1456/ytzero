@@ -23,7 +23,7 @@ export function isPrivateVideoError(error: unknown): boolean {
 
 export function isDeletedVideoError(error: unknown): boolean {
   return error instanceof DeletedVideoError
-    || (error instanceof Error && /\b(?:video unavailable|video (?:has been|was) removed|removed by (?:the )?uploader)\b/i.test(error.message));
+    || (error instanceof Error && /\b(?:video unavailable|video (?:has been|was) removed|removed by (?:the )?uploader|vidéo non disponible|video nicht verfügbar|film niedostępny)\b/i.test(error.message));
 }
 
 export type VideoOEmbedAvailability = "available" | "unavailable" | "unknown";

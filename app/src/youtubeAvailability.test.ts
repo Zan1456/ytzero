@@ -26,6 +26,13 @@ describe("deleted video errors", () => {
     expect(isDeletedVideoError(new Error("This video has been removed by the uploader"))).toBe(true);
   });
 
+  test("recognizes localized deletion messages (fr/de/pl)", () => {
+    expect(isDeletedVideoError(new Error("Vidéo non disponible"))).toBe(true);
+    expect(isDeletedVideoError(new Error("Video nicht verfügbar"))).toBe(true);
+    expect(isDeletedVideoError(new Error("Film niedostępny"))).toBe(true);
+    expect(isDeletedVideoError(new Error("videoDetails missing (ERROR: Vidéo non disponible)"))).toBe(true);
+  });
+
   test("does not classify transient or authentication failures as deletions", () => {
     expect(isDeletedVideoError(new Error("YouTube fetch failed (503)"))).toBe(false);
     expect(isDeletedVideoError(new Error("Sign in to confirm you're not a bot"))).toBe(false);

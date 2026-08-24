@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { parseAbbreviatedCount } from "./youtubeSearch";
 import { searchChannelFromLockup, searchVideoFromLockup } from "./youtube";
 
 // Shapes captured from a live youtube.com/results page after the migration
@@ -50,6 +51,34 @@ const channelLockup = {
     },
   },
 };
+
+describe("parseAbbreviatedCount", () => {
+  test("handles English abbreviated formats", () => {
+    expect(parseAbbreviatedCount("4.7M views")).toBe(4_700_000);
+    expect(parseAbbreviatedCount("12K views")).toBe(12_000);
+    expect(parseAbbreviatedCount("620K subscribers")).toBe(620_000);
+    expect(parseAbbreviatedCount("1.2K videos")).toBe(1_200);
+  });
+
+  test("handles French/German comma-as-decimal format", () => {
+    expect(parseAbbreviatedCount("4,7 M de vues")).toBe(4_700_000);
+    expect(parseAbbreviatedCount("12 k vues")).toBe(12_000);
+    expect(parseAbbreviatedCount("1,2 tys.")).toBe(1_200);
+  });
+
+  test("handles European dot-as-thousands-separator", () => {
+    expect(parseAbbreviatedCount("4.700.000 views")).toBe(4_700_000);
+    expect(parseAbbreviatedCount("1.234.567")).toBe(1_234_567);
+  });
+
+  test("handles US comma-as-thousands-separator", () => {
+    expect(parseAbbreviatedCount("4,700,000 views")).toBe(4_700_000);
+  });
+
+  test("returns null for non-numeric text", () => {
+    expect(parseAbbreviatedCount("PP World")).toBeNull();
+  });
+});
 
 describe("searchVideoFromLockup", () => {
   test("reads video card fields including abbreviated view count", () => {

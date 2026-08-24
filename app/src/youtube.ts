@@ -1,7 +1,8 @@
 import { XMLParser } from "fast-xml-parser";
 import { createRequire } from "module";
 import { decodeHtmlEntities } from "./htmlEntities";
-import { createYoutubeSearch } from "./youtubeSearch";
+import { db, getUserSetting } from "./db";
+import { createYoutubeSearch, parseAbbreviatedCount } from "./youtubeSearch";
 import { isYouTubeRateLimitError, readYouTubeResponse } from "./youtubeRateLimit";
 import { DeletedVideoError, fetchVideoOEmbedAvailability, isDeletedVideoError, isPrivateVideoError, PrivateVideoError } from "./youtubeVideoAvailability";
 export { DeletedVideoError, fetchVideoOEmbedAvailability, isDeletedVideoError, isPrivateVideoError, PrivateVideoError, videoOEmbedAvailabilityFromStatus } from "./youtubeVideoAvailability";
@@ -9,16 +10,47 @@ const _require = createRequire(import.meta.url);
 const InnerTubeClient = _require("innertube.js");
 const _yt = new InnerTubeClient();
 
-const FETCH_HEADERS = {
+// Language code → BCP-47 locale used in Accept-Language.
+// Kept in sync with the equivalent map in playbackAdjacent.ts.
+const YT_LOCALE_MAP: Record<string, string> = {
+  en: "en-US",
+  pl: "pl-PL",
+  de: "de-DE",
+  fr: "fr-FR",
+};
+
+function resolveAcceptLanguage(): string {
+  // Priority: (1) env override, (2) primary-user language setting, (3) en-US fallback.
+  const envLang = process.env.YTZERO_YT_LANGUAGE;
+  if (envLang) {
+    const base = envLang.split(",")[0].trim();
+    const tag = base.split("-")[0];
+    return tag === base ? `${base};q=0.9` : `${base},${tag};q=0.9`;
+  }
+  try {
+    const row = db.prepare("SELECT id FROM users ORDER BY id ASC LIMIT 1").get() as { id: number } | null;
+    if (!row) return "en-US,en;q=0.9";
+    const lang = getUserSetting(row.id, "language") ?? "en";
+    const locale = YT_LOCALE_MAP[lang] ?? "en-US";
+    const tag = locale.split("-")[0];
+    return `${locale},${tag};q=0.9`;
+  } catch {
+    return "en-US,en;q=0.9";
+  }
+}
+
+const _ACCEPT_LANGUAGE = resolveAcceptLanguage();
+
+const FETCH_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-  "Accept-Language": "en-US,en;q=0.9",
+  "Accept-Language": _ACCEPT_LANGUAGE,
   Cookie: "CONSENT=YES+cb.20240101-00-p0.en+FX+100; SOCS=CAI",
 };
 
-const RSS_HEADERS = {
+const RSS_HEADERS: Record<string, string> = {
   "User-Agent": FETCH_HEADERS["User-Agent"],
-  "Accept-Language": FETCH_HEADERS["Accept-Language"],
+  "Accept-Language": _ACCEPT_LANGUAGE,
 };
 
 const xml = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
@@ -210,7 +242,7 @@ function isSubscriberText(text: string): boolean {
 }
 
 function isVideoCountText(text: string): boolean {
-  return /\b(videos?|film(?:y|ów)?)\b/i.test(text);
+  return /\b(videos?|film(?:y|ów)?)\b/i.test(text) || /vidéos?/i.test(text);
 }
 
 function isViewCountText(text: string): boolean {
@@ -232,7 +264,7 @@ function cleanSubscriberCount(text: string): string {
 
 function cleanVideoCount(text: string): string {
   return text
-    .replace(/\s*(videos?|film(?:y|ów)?)\s*/gi, "")
+    .replace(/\s*(videos?|vidéos?|film(?:y|ów)?)\s*/gi, "")
     .replace(/[•·]/g, "")
     .trim();
 }
@@ -744,7 +776,6 @@ async function fetchChannelTabVideos(channelId: string, tab: "videos" | "streams
     seen.add(r.videoId);
     const viewStr =
       r?.viewCountText?.simpleText ?? r?.viewCountText?.runs?.[0]?.text ?? "";
-    const viewNum = parseInt(viewStr.replace(/\D/g, ""), 10);
     out.push({
       videoId: r.videoId,
       title: decodeHtmlEntities(r.title?.runs?.[0]?.text ?? r.title?.simpleText ?? ""),
@@ -752,7 +783,7 @@ async function fetchChannelTabVideos(channelId: string, tab: "videos" | "streams
         r.thumbnail?.thumbnails?.at(-1)?.url ??
         `https://i.ytimg.com/vi/${r.videoId}/hqdefault.jpg`,
       duration: r.lengthText?.simpleText ?? "",
-      viewCount: Number.isFinite(viewNum) && viewNum > 0 ? viewNum : null,
+      viewCount: viewStr ? parseAbbreviatedCount(viewStr) : null,
       publishedAt: relativePublishedFromNode(r),
       publishedAtApproximate: true,
       membersOnly: hasMembersOnlyBadge(r),
@@ -824,8 +855,6 @@ export interface PublishedAgo {
   unit: "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
 }
 
-// YouTube only exposes a relative label here ("3 days ago", "Streamed 2 weeks ago");
-// English wording is guaranteed by the Accept-Language pin in FETCH_HEADERS.
 export function parsePublishedTimeText(text: string | undefined): PublishedAgo | null {
   if (!text) return null;
   const english = text.match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/i);
@@ -845,16 +874,30 @@ export function parsePublishedTimeText(text: string | undefined): PublishedAgo |
   }
 
   const german = text.match(/vor\s+(\d+)\s+(Sekunde[n]?|Minute[n]?|Stunde[n]?|Tag(?:en)?|Woche[n]?|Monat(?:en)?|Jahr(?:en)?)/i);
-  if (!german) return null;
-  const word = german[2].toLowerCase();
-  const unit: PublishedAgo["unit"] = word.startsWith("sekunde") ? "second"
-    : word.startsWith("minute") ? "minute"
-    : word.startsWith("stunde") ? "hour"
-    : word.startsWith("tag") ? "day"
-    : word.startsWith("woche") ? "week"
-    : word.startsWith("monat") ? "month"
+  if (german) {
+    const word = german[2].toLowerCase();
+    const unit: PublishedAgo["unit"] = word.startsWith("sekunde") ? "second"
+      : word.startsWith("minute") ? "minute"
+      : word.startsWith("stunde") ? "hour"
+      : word.startsWith("tag") ? "day"
+      : word.startsWith("woche") ? "week"
+      : word.startsWith("monat") ? "month"
+      : "year";
+    return { value: parseInt(german[1], 10), unit };
+  }
+
+  // French: "il y a 3 jours", "il y a 1 mois", "il y a 2 ans"
+  const french = text.match(/il y a\s+(\d+)\s+(seconde|minute|heure|jour|semaine|mois|an)s?/i);
+  if (!french) return null;
+  const word = french[2].toLowerCase();
+  const unit: PublishedAgo["unit"] = word === "seconde" ? "second"
+    : word === "minute" ? "minute"
+    : word === "heure" ? "hour"
+    : word === "jour" ? "day"
+    : word === "semaine" ? "week"
+    : word === "mois" ? "month"
     : "year";
-  return { value: parseInt(german[1], 10), unit };
+  return { value: parseInt(french[1], 10), unit };
 }
 
 export function relativePublishedAt(published: PublishedAgo, now = new Date()): string {

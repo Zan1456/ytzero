@@ -12,6 +12,41 @@ interface YoutubeSearchDependencies {
   parsePublishedTimeText: (text: string | undefined) => PublishedAgo | null;
 }
 
+/**
+ * Parse an abbreviated or full view/subscriber count returned by YouTube.
+ * Handles locale-specific formats: "4.7M", "4,7 M" (fr/de comma-as-decimal),
+ * "4.700.000" (European dot-as-thousands), "4,700,000" (US comma-as-thousands),
+ * and word suffixes "mln", "tys.", "Mio.", "Mrd.".
+ */
+export function parseAbbreviatedCount(text: string): number | null {
+  // Abbreviated: number with optional decimal part followed by a letter/word suffix.
+  // Accepts both comma ("4,7 M") and dot ("4.7M") as the decimal separator.
+  const abbr = text.match(/([\d]+(?:[.,][\d]+)?)\s*([KkMmBb]|mln\.?|tys\.?|Mio\.?|Mrd\.?)\b/);
+  if (abbr) {
+    const value = parseFloat(abbr[1].replace(",", "."));
+    if (!Number.isFinite(value)) return null;
+    const suffix = abbr[2].toLowerCase().replace(/\.$/, "");
+    const multiplierMap: Record<string, number> = {
+      k: 1e3, m: 1e6, b: 1e9,
+      mln: 1e6, tys: 1e3, mio: 1e6, mrd: 1e9,
+    };
+    const total = Math.round(value * (multiplierMap[suffix] ?? 1));
+    return total > 0 ? total : null;
+  }
+
+  // Full number with thousands separators: "4,700,000" or "4.700.000" or "12345".
+  const full = text.match(/\d[\d,.]*\d|\d/)?.[0];
+  if (!full) return null;
+  // European style "4.700.000" — groups of exactly three digits separated by dots.
+  if (/^\d{1,3}(?:\.\d{3})+$/.test(full)) {
+    const v = parseInt(full.replace(/\./g, ""), 10);
+    return v > 0 ? v : null;
+  }
+  // Standard style — strip commas/spaces used as thousands separators.
+  const v = parseInt(full.replace(/[, ]/g, ""), 10);
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
 export function createYoutubeSearch(dependencies: YoutubeSearchDependencies) {
   const {
     FETCH_HEADERS,
@@ -26,17 +61,6 @@ export function createYoutubeSearch(dependencies: YoutubeSearchDependencies) {
 
 const searchCache = new Map<string, { at: number; data: { results: SearchResult[]; channels: ChannelSearchResult[] } }>();
 const SEARCH_TTL = 5 * 60_000;
-
-/** Parse an abbreviated or full count like "4.7M views" or "4,700,000 views". */
-function parseAbbreviatedCount(text: string): number | null {
-  const m = text.replace(/,/g, "").match(/([\d.]+)\s*([KMB])?/i);
-  if (!m) return null;
-  const value = parseFloat(m[1]);
-  if (!Number.isFinite(value)) return null;
-  const multiplier = { k: 1e3, m: 1e6, b: 1e9 }[(m[2] ?? "").toLowerCase()] ?? 1;
-  const total = Math.round(value * multiplier);
-  return total > 0 ? total : null;
-}
 
 /** Flatten every text part across a lockup's metadata rows. */
 function lockupMetadataParts(vm: any): any[] {
@@ -103,7 +127,6 @@ function collectSearchVideos(data: any): SearchResult[] {
     if (!r?.videoId || seen.has(r.videoId)) continue;
     seen.add(r.videoId);
     const viewStr = r?.viewCountText?.simpleText ?? r?.viewCountText?.runs?.[0]?.text ?? "";
-    const viewNum = parseInt(viewStr.replace(/\D/g, ""), 10);
     out.push({
       videoId: r.videoId,
       title: decodeHtmlEntities(r.title?.runs?.[0]?.text ?? r.title?.simpleText ?? ""),
@@ -112,7 +135,7 @@ function collectSearchVideos(data: any): SearchResult[] {
       channelTitle: decodeHtmlEntities(r.shortBylineText?.runs?.[0]?.text ?? ""),
       channelAvatar: r.channelThumbnailSupportedRenderers?.channelThumbnailWithLinkRenderer
         ?.thumbnail?.thumbnails?.at(-1)?.url ?? null,
-      viewCount: Number.isFinite(viewNum) && viewNum > 0 ? viewNum : null,
+      viewCount: viewStr ? parseAbbreviatedCount(viewStr) : null,
       published: parsePublishedTimeText(r.publishedTimeText?.simpleText),
     });
   }
