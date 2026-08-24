@@ -48,8 +48,9 @@ the browser. Sources without a usable index fall back to the regular byte-range
 audio stream.
 
 Safari consumes the VOD playlist through its native HLS support. Other
-supported browsers use the same lazily loaded `hls.js` path as live audio, with
-audio-sized buffer limits so long recordings are not fetched far ahead.
+supported browsers use the same lazily loaded `hls.js` path as live audio. VOD
+keeps up to about four minutes ahead of the playhead, while live audio retains
+its short buffer so it stays close to the broadcast edge.
 
 For active livestreams, yt-dlp resolves an HLS audio rendition. YT Zero rewrites
 the rolling playlist and proxies its manifests and segments through opaque,
@@ -71,6 +72,11 @@ video title, channel, and thumbnail.
 Background and lock-screen playback ultimately depend on browser and operating
 system policy. iOS may still stop playback under memory pressure, after a
 network change, or when a live playlist is temporarily unavailable.
+
+When iOS blocks the initial autoplay after navigation, the first touch anywhere
+on the watch page retries the audio start. This one-time fallback stops as soon
+as the element has started, so a listener's deliberate pause is never undone by
+a later touch.
 
 ## Errors and retrying
 

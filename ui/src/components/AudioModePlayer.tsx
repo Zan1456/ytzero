@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { LoaderCircle, Pause, Play, RefreshCw, Volume2, VolumeX } from "lucide-react";
 import { api } from "../api";
+import { installInitialAudioPlaybackUnlock } from "../audioPlaybackUnlock";
 import { useI18n } from "../i18n";
 import { enforceLocalPlayerVolume } from "../localPlayerVolume";
 import type { WatchPlayerHandle } from "../playerHandle";
@@ -72,11 +73,13 @@ const AudioModePlayer = forwardRef<WatchPlayerHandle, {
 }, ref) {
   const { t } = useI18n();
   const audioRef = useRef<HTMLAudioElement>(null);
+  const playButtonRef = useRef<HTMLButtonElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const volumeControlRef = useRef<HTMLDivElement>(null);
   const ignoreNextVolumeBlurRef = useRef(false);
   const startedAtRef = useRef(startSeconds);
   const endedRef = useRef(false);
+  const playbackStartedRef = useRef(false);
 
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [playing, setPlaying] = useState(false);
@@ -102,6 +105,16 @@ const AudioModePlayer = forwardRef<WatchPlayerHandle, {
     setBuffering(false);
     setPlaying(false);
   }, []);
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || status === "error") return;
+    return installInitialAudioPlaybackUnlock({
+      audio,
+      eventTarget: document,
+      hasPlayed: () => playbackStartedRef.current,
+      isExcludedTarget: (target) => target instanceof Node && Boolean(playButtonRef.current?.contains(target)),
+    });
+  }, [status]);
   useAudioMediaSource({
     audioRef,
     live,
@@ -376,6 +389,7 @@ const AudioModePlayer = forwardRef<WatchPlayerHandle, {
         onCanPlay={() => { setStatus("ready"); setBuffering(false); setRetryAttempts(0); }}
         onPlaying={() => { setStatus("ready"); setPlaying(true); setBuffering(false); setRetryAttempts(0); endedRef.current = false; }}
         onPlay={() => {
+          playbackStartedRef.current = true;
           setPlaying(true);
           try { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; } catch {}
         }}
@@ -437,7 +451,7 @@ const AudioModePlayer = forwardRef<WatchPlayerHandle, {
           </div>
           {status !== "error" && (
             <div className="audio-mode-player" aria-label={title}>
-              <button className="lp-btn audio-mode-play" onClick={togglePlay} aria-label={playing ? t("playerPause") : t("playerPlay")} disabled={status !== "ready"}>
+              <button ref={playButtonRef} className="lp-btn audio-mode-play" onClick={togglePlay} aria-label={playing ? t("playerPause") : t("playerPlay")} disabled={status !== "ready"}>
                 {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
               </button>
               {live ? (

@@ -1,5 +1,5 @@
 import { useEffect, type RefObject } from "react";
-import { shouldFallbackFromHlsJs, shouldFallbackFromNativeHls } from "../audioMediaSourcePolicy";
+import { audioHlsBufferConfig, shouldFallbackFromHlsJs, shouldFallbackFromNativeHls } from "../audioMediaSourcePolicy";
 
 export function useAudioMediaSource({
   audioRef,
@@ -69,13 +69,7 @@ export function useAudioMediaSource({
         if (!attachProgressive()) fatal();
         return;
       }
-      const instance = new Hls({
-        backBufferLength: 30,
-        lowLatencyMode: live,
-        maxBufferLength: 30,
-        maxBufferSize: 8 * 1024 * 1024,
-        maxMaxBufferLength: 60,
-      });
+      const instance = new Hls(audioHlsBufferConfig(live));
       hls = instance;
       source = "hls-js";
       instance.loadSource(playlistSrc);
