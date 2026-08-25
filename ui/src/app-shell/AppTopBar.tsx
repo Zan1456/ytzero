@@ -6,6 +6,7 @@ import { emit, subscribe } from "../events";
 import ProfileMenu from "../components/ProfileMenu";
 import { useI18n } from "../i18n";
 import { toggleSidebar } from "./sidebarVisibility";
+import SessionPlayQueueMenu from "./SessionPlayQueueMenu";
 
 function SpyLogo() {
   return (
@@ -146,6 +147,7 @@ export default function AppTopBar({
           <Search />
         </button>
       </form>
+      <SessionPlayQueueMenu />
       <ProfileMenu
         isAdmin={isAdmin}
         isChildProfile={isChildProfile}

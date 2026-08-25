@@ -5,8 +5,8 @@ export type PlaybackEndAction = "stop" | "offer" | "advance";
 
 export function isContinuousPlaylistQueue(
   queue: PlaybackQueueContext | null,
-): queue is Extract<PlaybackQueueContext, { kind: "user-playlist" | "channel-playlist" }> {
-  return queue?.kind === "user-playlist" || queue?.kind === "channel-playlist";
+): queue is Extract<PlaybackQueueContext, { kind: "user-playlist" | "channel-playlist" | "session" }> {
+  return queue?.kind === "user-playlist" || queue?.kind === "channel-playlist" || queue?.kind === "session";
 }
 
 export function playbackEndAction(

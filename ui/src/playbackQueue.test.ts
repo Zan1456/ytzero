@@ -13,6 +13,7 @@ describe("playback queue context", () => {
       { version: 1, kind: "watchlist", sort: "duration-desc", dueOnly: false },
       { version: 1, kind: "recommendations" },
       { version: 1, kind: "in-progress" },
+      { version: 1, kind: "session", ids: ["dQw4w9WgXcQ"] },
     ];
     for (const context of contexts) expect(isPlaybackQueueContext(context)).toBe(true);
   });
@@ -22,5 +23,6 @@ describe("playback queue context", () => {
     expect(isPlaybackQueueContext({ version: 1, kind: "feed", tags: [0], sort: "arrival", showAll: false })).toBe(false);
     expect(isPlaybackQueueContext({ version: 1, kind: "watchlist", sort: "random", dueOnly: false })).toBe(false);
     expect(isPlaybackQueueContext({ kind: "history" })).toBe(false);
+    expect(isPlaybackQueueContext({ version: 1, kind: "session", ids: ["no"] })).toBe(false);
   });
 });

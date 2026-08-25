@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { emit, subscribe } from "./events";
 
-export const VIDEO_CARD_ACTION_IDS = ["schedule", "playlist", "download", "archive", "watched", "restore", "remove"] as const;
+export const VIDEO_CARD_ACTION_IDS = ["schedule", "sessionQueue", "playlist", "download", "archive", "watched", "restore", "remove"] as const;
 export type VideoCardActionId = (typeof VIDEO_CARD_ACTION_IDS)[number];
 export type VideoCardActionConfig = { version: 1; actions: Array<{ id: VideoCardActionId; hidden: boolean }> };
 export const LOCKED_VIDEO_CARD_ACTION_IDS = new Set<VideoCardActionId>(["schedule", "restore", "remove"]);
@@ -24,7 +24,11 @@ export function parseVideoCardActionConfig(value: unknown): VideoCardActionConfi
     seen.add(id);
     actions.push({ id: id as VideoCardActionId, hidden: LOCKED_VIDEO_CARD_ACTION_IDS.has(id as VideoCardActionId) ? false : hidden });
   }
-  for (const action of DEFAULT_VIDEO_CARD_ACTION_CONFIG.actions) if (!seen.has(action.id)) actions.push({ ...action });
+  for (const action of DEFAULT_VIDEO_CARD_ACTION_CONFIG.actions) if (!seen.has(action.id)) {
+    const missing = { ...action };
+    if (missing.id === "sessionQueue") actions.splice(Math.max(1, actions.findIndex((entry) => entry.id === "schedule") + 1), 0, missing);
+    else actions.push(missing);
+  }
   return { version: 1, actions: [actions.find((action) => action.id === "schedule")!, ...actions.filter((action) => action.id !== "schedule")] };
 }
 

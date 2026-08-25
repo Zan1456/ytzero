@@ -42,7 +42,9 @@ describe("HTTP route manifest", () => {
     const directStreamRoute = "GET /videos/:id/direct-stream";
     const ytdlpConfigRoute = "PUT /downloads/ytdlp/config";
     const ytdlpUpdateRoute = "POST /downloads/ytdlp/update";
-    expect(routes).toHaveLength(237);
+    const importVideoRoute = "POST /videos/:id/import";
+    const sessionPlaylistRoute = "POST /playlists/from-session-queue";
+    expect(routes).toHaveLength(239);
     expect(routes).toContain(transcriptRoute);
     expect(routes).toContain(playbackAdjacentRoute);
     expect(routes).toContain(liveAudioRoute);
@@ -51,9 +53,11 @@ describe("HTTP route manifest", () => {
     expect(routes).toContain(directStreamRoute);
     expect(routes).toContain(ytdlpConfigRoute);
     expect(routes).toContain(ytdlpUpdateRoute);
+    expect(routes).toContain(importVideoRoute);
+    expect(routes).toContain(sessionPlaylistRoute);
     expect(routes).toContain("GET /plugins/tubearchivist/config");
     expect(routes).toContain("POST /plugins/tubearchivist/sync");
-    const legacyRoutes = routes.filter((route) => route !== transcriptRoute && route !== playbackAdjacentRoute && route !== liveAudioRoute && route !== vodAudioRoute && route !== retryAudioRoute && route !== directStreamRoute && route !== ytdlpConfigRoute && route !== ytdlpUpdateRoute);
+    const legacyRoutes = routes.filter((route) => route !== transcriptRoute && route !== playbackAdjacentRoute && route !== liveAudioRoute && route !== vodAudioRoute && route !== retryAudioRoute && route !== directStreamRoute && route !== ytdlpConfigRoute && route !== ytdlpUpdateRoute && route !== importVideoRoute && route !== sessionPlaylistRoute);
     expect(createHash("sha256").update(legacyRoutes.join("\n")).digest("hex"))
       .toBe("b509256cb7da96282e29051b998efa9ea649d0a75751a82dc589e718d718b330");
   });

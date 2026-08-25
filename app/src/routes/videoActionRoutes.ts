@@ -42,6 +42,20 @@ api.post("/videos/:id/queue", async (c) => {
   return c.json({ ok: true });
 });
 
+api.post("/videos/:id/import", async (c) => {
+  const uid = currentUserId(c);
+  const id = c.req.param("id");
+  if (await videoExistsStmt.get(id)) return c.json({ ok: true });
+  if (childLocalOnly(uid)) return c.json({ error: "restricted" }, 403);
+  try {
+    await ensureOnDemandVideo(id);
+    return c.json({ ok: true });
+  } catch (error) {
+    if (error instanceof OnDemandVideoImportError) return c.json({ error: error.message }, error.status);
+    throw error;
+  }
+});
+
 api.post("/videos/:id/archive", async (c) => {
   const uid = currentUserId(c);
   const id = c.req.param("id");

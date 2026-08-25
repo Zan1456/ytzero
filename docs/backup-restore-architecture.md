@@ -232,6 +232,9 @@ below.
   list playback is disabled, waits for confirmation, or starts automatically,
   plus whether it follows the visible list order or walks it in reverse. The
   active playback queue itself is transient router state and is never exported.
+  The session play queue is browser `sessionStorage` state scoped to one tab.
+  Its temporary playback context is accepted only while resolving the next or
+  previous item; it is never stored on `user_videos`, exported, or restored.
   Sidebar navigation entries may be visible, kept under the overflow disclosure,
   or completely hidden. This bounded tri-state is portable configuration in
   `profile.settings` schema v6. Older backups retain their two-state meaning.

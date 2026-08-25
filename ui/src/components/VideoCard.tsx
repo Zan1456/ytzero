@@ -27,6 +27,7 @@ import Tooltip from "./Tooltip";
 import { VideoThumbnail, watchProgress } from "./VideoThumbnail";
 import { BUCKET_ICONS, VideoScheduleActions } from "./VideoScheduleActions";
 import { VideoCardPlaylistAction } from "./VideoCardPlaylistAction";
+import { SessionPlayQueueAction } from "./SessionPlayQueueAction";
 import { Badge } from "./ui";
 import { useDeArrowBranding } from "../dearrow";
 import { readAppliedVideoCardActionsMode, type VideoCardActionsMode } from "../videoCardActions";
@@ -504,6 +505,8 @@ export function VideoCard({
   const renderSecondaryAction = (id: VideoCardActionId): ReactNode => {
     if (actionPreview && id !== "schedule") return actionPreview.renderAction(id);
     switch (id) {
+      case "sessionQueue":
+        return <SessionPlayQueueAction key={id} video={video} />;
       case "playlist":
         return <VideoCardPlaylistAction
           key={id}

@@ -46,6 +46,7 @@ import { img } from "../img";
 import { Alert, Button, ButtonAnchor, Checkbox, IconButton, LocalToast, Menu, MenuItem, MenuSeparator, MenuStatus, Popover, ScrollArea, Switch } from "../components/ui";
 import { WatchPanel } from "../components/WatchPanel";
 import VideoCreators from "../components/VideoCreators";
+import { SessionPlayQueueAction } from "../components/SessionPlayQueueAction";
 import Tooltip from "../components/Tooltip";
 import { markYouTubeUrl } from "../youtubeUrl";
 import VideoComments from "../components/VideoComments";
@@ -79,6 +80,7 @@ export default function WatchPage() {
     backgroundDownload,
     cancelOrRemoveDownload,
     canPlayNextVideo,
+    canPlayPreviousVideo,
     captionsDefaultLang,
     captionsDefaultOn,
     capturePlaybackPosition,
@@ -125,6 +127,7 @@ export default function WatchPage() {
     playerRef,
     playerWrapRef,
     playNextVideo,
+    playPreviousVideo,
     playlistId,
     playlistIndex,
     playlistItemsRef,
@@ -244,6 +247,7 @@ export default function WatchPage() {
                     playbackRate={video.live_status === "live" ? 1 : Number(speed)}
                     keyboardSeekSeconds={keyboardSeekSeconds}
                     onEnded={video.live_status === "live" ? undefined : handleEnded} onReload={reload}
+                    onNext={canPlayNextVideo ? playNextVideo : undefined} onPrevious={canPlayPreviousVideo ? playPreviousVideo : undefined}
                   />
                 </Suspense>
               ) : (membersOnlyNotice || (privateVideoNotice && playerKind !== "direct")) && video ? (
@@ -276,6 +280,7 @@ export default function WatchPage() {
                   cinemaMode={cinemaMode}
                   onToggleCinema={() => setCinemaMode((mode) => !mode)}
                   onEnded={watchTogetherTransportLocked ? undefined : handleEnded}
+                  onNext={canPlayNextVideo ? playNextVideo : undefined} onPrevious={canPlayPreviousVideo ? playPreviousVideo : undefined}
                   keyboardSeekSeconds={keyboardSeekSeconds} keyboardShortcuts={settings?.keyboard_shortcuts} frameRate={Number(settings?.enhance_frame_fps) || 30}
                   onShortcut={showShortcutFeedback}
                   screenshotFormat={screenshotFormat}
@@ -310,6 +315,7 @@ export default function WatchPage() {
                   cinemaMode={cinemaMode}
                   onToggleCinema={() => setCinemaMode((mode) => !mode)}
                   onEnded={watchTogetherTransportLocked ? undefined : handleEnded}
+                  onNext={canPlayNextVideo ? playNextVideo : undefined} onPrevious={canPlayPreviousVideo ? playPreviousVideo : undefined}
                   keyboardSeekSeconds={keyboardSeekSeconds} keyboardShortcuts={settings?.keyboard_shortcuts} frameRate={Number(settings?.enhance_frame_fps) || 30}
                   onShortcut={showShortcutFeedback}
                   screenshotFormat={screenshotFormat}
@@ -979,6 +985,7 @@ export default function WatchPage() {
                   toggleRelatedSchedule(v, bucket, active).catch(console.error);
                 }}
               />
+              <SessionPlayQueueAction video={v} compact />
             </div>
             <div className="related-item-info">
               <Link className="r-title" to={`/watch/${v.video_id}`} title={v.title}>{v.title}</Link>

@@ -14,7 +14,11 @@ export type PlaybackQueueContext =
   | { version: 1; kind: "channel-playlist"; playlistId: string; sort: (typeof PLAYLIST_SORTS)[number] }
   | { version: 1; kind: "watchlist"; sort: WatchlistSort; dueOnly: boolean }
   | { version: 1; kind: "recommendations" }
-  | { version: 1; kind: "in-progress" };
+  | { version: 1; kind: "in-progress" }
+  | { version: 1; kind: "session"; ids: string[] };
+
+export const SESSION_PLAY_QUEUE_MAX_ITEMS = 100;
+const VIDEO_ID = /^[A-Za-z0-9_-]{6,20}$/;
 
 export type PlayVideo = (video: Video, queue?: PlaybackQueueContext) => void;
 
@@ -25,6 +29,8 @@ export function isPlaybackQueueContext(value: unknown): value is PlaybackQueueCo
   if (queue.kind === "feed") return Array.isArray(queue.tags) && queue.tags.every((tag) => Number.isSafeInteger(tag) && tag > 0)
     && typeof queue.showAll === "boolean" && (queue.sort === "published" || queue.sort === "arrival");
   if (queue.kind === "liked") return typeof queue.showShorts === "boolean";
+  if (queue.kind === "session") return Array.isArray(queue.ids) && queue.ids.length <= SESSION_PLAY_QUEUE_MAX_ITEMS
+    && queue.ids.every((id) => typeof id === "string" && VIDEO_ID.test(id));
   if (queue.kind === "user-playlist") return typeof queue.playlistUuid === "string" && queue.playlistUuid.length > 0
     && (queue.sort === undefined || (USER_PLAYLIST_SORTS as readonly unknown[]).includes(queue.sort));
   if (queue.kind === "channel-playlist") return typeof queue.playlistId === "string" && queue.playlistId.length > 0

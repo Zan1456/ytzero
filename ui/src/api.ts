@@ -297,6 +297,7 @@ export const api = {
     }),
   queue: (id: string, bucket: Bucket) =>
     http(`/videos/${id}/queue`, { method: "POST", body: JSON.stringify({ bucket }) }),
+  importVideo: (id: string) => http<{ ok: true }>(`/videos/${id}/import`, { method: "POST", body: "{}" }),
   saveProgress: (id: string, position: number, duration: number, keepalive = false) =>
     http(`/videos/${id}/progress`, { method: "PUT", body: JSON.stringify({ position, duration }), keepalive }),
   clearProgress: (id: string) => http(`/videos/${id}/progress`, { method: "DELETE" }),
@@ -304,8 +305,8 @@ export const api = {
   archiveVideo: (id: string) => http(`/videos/${id}/archive`, { method: "POST" }),
   restore: (id: string) => http(`/videos/${id}/restore`, { method: "POST" }),
   watch: (id: string, playbackContext?: PlaybackQueueContext) => http(`/videos/${id}/watch`, { method: "POST", body: JSON.stringify(playbackContext ? { playback_context: playbackContext } : {}) }),
-  playbackAdjacent: (id: string, direction: "oldest" | "newest", context: PlaybackQueueContext) =>
-    http<{ video_id: string | null }>("/playback/adjacent", { method: "POST", body: JSON.stringify({ video_id: id, direction, context }) }),
+  playbackAdjacent: (id: string, direction: "oldest" | "newest", context: PlaybackQueueContext, relative: "next" | "previous" = "next") =>
+    http<{ video_id: string | null }>("/playback/adjacent", { method: "POST", body: JSON.stringify({ video_id: id, direction, relative, context }) }),
   complete: (id: string) => http(`/videos/${id}/complete`, { method: "POST" }),
   markUnwatched: (id: string) => http(`/videos/${id}/complete`, { method: "DELETE" }),
   likeVideo: (id: string, liked: boolean) =>
@@ -426,6 +427,8 @@ export const api = {
   },
   createUserPlaylist: (p: { name: string; icon?: string }) =>
     http<{ playlist: UserPlaylist }>("/playlists", { method: "POST", body: JSON.stringify(p) }),
+  createUserPlaylistFromSessionQueue: (p: { name: string; icon?: string; video_ids: string[] }) =>
+    http<{ playlist: UserPlaylist }>("/playlists/from-session-queue", { method: "POST", body: JSON.stringify(p) }),
   updateUserPlaylist: (id: number, p: Partial<Pick<UserPlaylist, "name" | "icon" | "sort_order">>) =>
     http<{ playlist: UserPlaylist }>(`/playlists/${id}`, { method: "PUT", body: JSON.stringify(p) }),
   deleteUserPlaylist: (id: number) => http(`/playlists/${id}`, { method: "DELETE" }),

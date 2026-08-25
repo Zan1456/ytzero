@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, Play, SkipForward, X } from "lucide-react";
 import "./UpNextOverlay.css";
-import type { Video } from "../api";
+import type { QueueDisplayVideo } from "../pages/useUpNextQueue";
 import { img } from "../img";
 import { useI18n } from "../i18n";
 import { Button, Switch } from "./ui";
@@ -9,7 +9,7 @@ import { Button, Switch } from "./ui";
 const COUNTDOWN_SECONDS = 5;
 
 export default function UpNextOverlay({ video, autoplayEnabled, loadingNext, onToggleAutoplay, onPlayNow, onSkip, onDismiss }: {
-  video: Video;
+  video: QueueDisplayVideo;
   autoplayEnabled: boolean;
   loadingNext: boolean;
   onToggleAutoplay: (next: boolean) => void;

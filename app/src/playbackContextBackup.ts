@@ -3,11 +3,12 @@ import { parsePlaybackContext, type PlaybackContext } from "./playbackContext";
 
 export type PortablePlaybackContext =
   | Omit<Extract<PlaybackContext, { kind: "feed" }>, "tags"> & { tagUuids: string[] }
-  | Exclude<PlaybackContext, { kind: "feed" }>;
+  | Exclude<PlaybackContext, { kind: "feed" | "session" }>;
 
 export async function exportPlaybackContext(userId: number, stored: unknown): Promise<PortablePlaybackContext | null> {
   const context = parsePlaybackContext(stored);
   if (!context) return null;
+  if (context.kind === "session") return null;
   if (context.kind !== "feed") return context;
   if (context.tags.length === 0) {
     const { tags: _tags, ...portable } = context;
@@ -32,6 +33,7 @@ export async function restorePlaybackContext(userId: number, value: unknown, res
   }
   const context = parsePlaybackContext(value);
   if (!context) return null;
+  if (context.kind === "session") return null;
   if (context.kind === "user-playlist" && !await database.prepare("SELECT 1 FROM user_playlists WHERE user_id=? AND portable_uuid=?").get(userId, context.playlistUuid)) return null;
   return context;
 }

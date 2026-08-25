@@ -14,7 +14,11 @@ export type PlaybackContext =
   | { version: 1; kind: "channel-playlist"; playlistId: string; sort: PlaylistSort }
   | { version: 1; kind: "watchlist"; sort: WatchlistSort; dueOnly: boolean }
   | { version: 1; kind: "recommendations" }
-  | { version: 1; kind: "in-progress" };
+  | { version: 1; kind: "in-progress" }
+  | { version: 1; kind: "session"; ids: string[] };
+
+export const SESSION_PLAY_QUEUE_MAX_ITEMS = 100;
+const VIDEO_ID = /^[A-Za-z0-9_-]{6,20}$/;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -31,6 +35,13 @@ export function parsePlaybackContext(value: unknown): PlaybackContext | null {
     return { version: 1, kind: "feed", tags: [...new Set(context.tags as number[])], showAll: context.showAll, sort: context.sort };
   }
   if (context.kind === "liked" && typeof context.showShorts === "boolean") return { version: 1, kind: "liked", showShorts: context.showShorts };
+  // A session queue is the list itself, unlike every durable source above.
+  // It is accepted for the adjacent-playback request but intentionally never
+  // persisted on a video (see savePlaybackContext).
+  if (context.kind === "session") {
+    if (!Array.isArray(context.ids) || context.ids.length > SESSION_PLAY_QUEUE_MAX_ITEMS || !context.ids.every((id) => typeof id === "string" && VIDEO_ID.test(id))) return null;
+    return { version: 1, kind: "session", ids: [...new Set(context.ids as string[])] };
+  }
   if (["history", "archive", "recommendations", "in-progress"].includes(context.kind)) return { version: 1, kind: context.kind } as PlaybackContext;
   if (context.kind === "user-playlist" && typeof context.playlistUuid === "string" && UUID.test(context.playlistUuid)) {
     if (context.sort !== undefined && !(USER_PLAYLIST_SORTS as readonly unknown[]).includes(context.sort)) return null;

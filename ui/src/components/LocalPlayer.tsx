@@ -70,6 +70,8 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   cinemaMode?: boolean;
   onToggleCinema?: () => void;
   onEnded?: () => void;
+  onNext?: () => void;
+  onPrevious?: () => void;
   keyboardSeekSeconds?: number;
   keyboardShortcuts?: string;
   frameRate?: number;
@@ -109,7 +111,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   sbSegments = [],
   cinemaMode = false,
   onToggleCinema,
-  onEnded,
+  onEnded, onNext, onPrevious,
   keyboardSeekSeconds = 5,
   keyboardShortcuts,
   frameRate = 30,
@@ -534,17 +536,19 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
       navigator.mediaSession.setActionHandler("seekbackward", transportLocked ? () => {} : () => seekBy(-10));
       navigator.mediaSession.setActionHandler("seekforward", transportLocked ? () => {} : () => seekBy(10));
       navigator.mediaSession.setActionHandler("seekto", transportLocked ? () => {} : null);
+      navigator.mediaSession.setActionHandler("nexttrack", transportLocked ? () => {} : onNext ?? null);
+      navigator.mediaSession.setActionHandler("previoustrack", transportLocked ? () => {} : onPrevious ?? null);
       navigator.mediaSession.setActionHandler("stop", transportLocked ? () => {} : null);
     } catch {}
     return () => {
       try {
         navigator.mediaSession.metadata = null;
-        for (const action of ["play", "pause", "seekbackward", "seekforward", "seekto", "stop"] as const) {
+        for (const action of ["play", "pause", "seekbackward", "seekforward", "seekto", "nexttrack", "previoustrack", "stop"] as const) {
           navigator.mediaSession.setActionHandler(action, null);
         }
       } catch {}
     };
-  }, [title, channelTitle, artworkUrl, seekBy, transportLocked]);
+  }, [title, channelTitle, artworkUrl, seekBy, transportLocked, onNext, onPrevious]);
 
   const updateBuffered = () => {
     const v = videoRef.current;

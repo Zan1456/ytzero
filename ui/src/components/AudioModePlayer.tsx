@@ -58,6 +58,8 @@ const AudioModePlayer = forwardRef<WatchPlayerHandle, {
   keyboardSeekSeconds?: number;
   onEnded?: () => void;
   onReload?: () => void;
+  onNext?: () => void;
+  onPrevious?: () => void;
 }>(function AudioModePlayer({
   playlistSrc,
   progressiveSrc,
@@ -72,6 +74,8 @@ const AudioModePlayer = forwardRef<WatchPlayerHandle, {
   keyboardSeekSeconds = 5,
   onEnded,
   onReload,
+  onNext,
+  onPrevious,
 }, ref) {
   const { t } = useI18n();
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -324,14 +328,16 @@ const AudioModePlayer = forwardRef<WatchPlayerHandle, {
       setAudioPosition(0);
       try { navigator.mediaSession.playbackState = "none"; } catch {}
     });
+    setHandler("nexttrack", onNext ?? null);
+    setHandler("previoustrack", onPrevious ?? null);
     return () => {
       try { navigator.mediaSession.metadata = null; } catch {}
       try { navigator.mediaSession.playbackState = "none"; } catch {}
-      for (const action of ["play", "pause", "seekbackward", "seekforward", "seekto", "stop"] as MediaSessionAction[]) {
+      for (const action of ["play", "pause", "seekbackward", "seekforward", "seekto", "nexttrack", "previoustrack", "stop"] as MediaSessionAction[]) {
         setHandler(action, null);
       }
     };
-  }, [artworkUrl, channelTitle, live, setAudioPosition, title]);
+  }, [artworkUrl, channelTitle, live, setAudioPosition, title, onNext, onPrevious]);
 
   const mediaDuration = duration > 0 ? duration : 0;
   const progress = mediaDuration > 0 ? Math.min(1, currentTime / mediaDuration) : 0;

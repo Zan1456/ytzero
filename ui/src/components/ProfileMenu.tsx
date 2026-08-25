@@ -13,6 +13,7 @@ import Tooltip from "./Tooltip";
 import { ENHANCE_EXTENSION_STATUS } from "../enhanceBridge";
 import { setIncognitoMode } from "../incognitoMode";
 import { clearDownloadActivity } from "../downloadActivity";
+import { clearSessionPlayQueue } from "../sessionPlayQueue";
 import { rememberProfile } from "../profilePreference";
 
 /** Round avatar: uploaded image, or a colored circle with the name initial. */
@@ -83,6 +84,7 @@ export default function ProfileMenu({ isAdmin, isChildProfile, profilePermission
       rememberProfile(result.active_id);
       setIncognitoMode(false);
       clearDownloadActivity();
+      clearSessionPlayQueue();
       // Full reload so feed, sidebar, settings and language all re-resolve.
       window.location.reload();
     } catch {
@@ -115,6 +117,7 @@ export default function ProfileMenu({ isAdmin, isChildProfile, profilePermission
   };
 
   const doLogout = async () => {
+    clearSessionPlayQueue();
     try {
       const { logout_url } = await api.logout();
       if (logout_url) window.location.href = logout_url;

@@ -6,11 +6,13 @@ const item = (id: string, watched: number | null = null, status: "inbox" | "arch
 const userPlaylist = { version: 1, kind: "user-playlist", playlistUuid: "playlist", sort: "added-newest" } satisfies PlaybackQueueContext;
 const channelPlaylist = { version: 1, kind: "channel-playlist", playlistId: "PL1234567890", sort: "oldest" } satisfies PlaybackQueueContext;
 const feed = { version: 1, kind: "feed", tags: [], showAll: false, sort: "published" } satisfies PlaybackQueueContext;
+const session = { version: 1, kind: "session", ids: ["dQw4w9WgXcQ"] } satisfies PlaybackQueueContext;
 
 describe("playlist playback", () => {
   test("classifies both playlist sources as continuous queues", () => {
     expect(isContinuousPlaylistQueue(userPlaylist)).toBe(true);
     expect(isContinuousPlaylistQueue(channelPlaylist)).toBe(true);
+    expect(isContinuousPlaylistQueue(session)).toBe(true);
     expect(isContinuousPlaylistQueue(feed)).toBe(false);
     expect(isContinuousPlaylistQueue(null)).toBe(false);
   });
@@ -21,6 +23,7 @@ describe("playlist playback", () => {
     expect(playbackEndAction(feed, true, false)).toBe("stop");
     expect(playbackEndAction(feed, true, true)).toBe("offer");
     expect(playbackEndAction(userPlaylist, false, true)).toBe("stop");
+    expect(playbackEndAction(session, true, false)).toBe("advance");
   });
 
   test("continues after the furthest watched item instead of the first unwatched gap", () => {

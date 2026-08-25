@@ -14,6 +14,9 @@ import type { VideoRow } from "../videoRoutesSupport";
 import { downloadableUserPlaylistVideoIds, sortUserPlaylistRows, type UserPlaylistSortable } from "../userPlaylistSort";
 import { shortsUiVisibilitySql } from "../feedQuery";
 import { ensureOnDemandVideo, OnDemandVideoImportError } from "../onDemandVideoImport";
+import { validYouTubeVideoId } from "../youtubeComments";
+
+const SESSION_PLAY_QUEUE_MAX_ITEMS = 100;
 
 type ApiEnvironment = { Variables: { userId: number; sessionAdmin?: boolean; profileAdmin?: boolean } };
 type Api = Hono<ApiEnvironment>;
@@ -57,6 +60,38 @@ export function registerUserPlaylistRoutes(
       "INSERT INTO user_playlists (name, icon, sort_order, user_id, portable_uuid) VALUES (?, ?, ?, ?, ?) RETURNING id, portable_uuid, name, icon, sort_order, created_at",
     ).get(name.trim(), String(icon || "ListMusic").trim() || "ListMusic", nextOrder.sort_order, uid, crypto.randomUUID());
     return c.json({ playlist: row });
+  });
+
+  api.post("/playlists/from-session-queue", async (c) => {
+    const uid = currentUserId(c);
+    const body = await c.req.json().catch(() => ({})) as { name?: unknown; icon?: unknown; video_ids?: unknown };
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    if (!name) return c.json({ error: "name required" }, 400);
+    if (!Array.isArray(body.video_ids) || body.video_ids.length === 0 || body.video_ids.length > SESSION_PLAY_QUEUE_MAX_ITEMS) return c.json({ error: "invalid video ids" }, 400);
+    const videoIds = [...new Set(body.video_ids)];
+    if (videoIds.some((id) => typeof id !== "string" || !validYouTubeVideoId(id))) return c.json({ error: "invalid video ids" }, 400);
+    if (childLocalOnly(uid)) {
+      for (const videoId of videoIds) if (!await database.prepare("SELECT 1 FROM videos WHERE video_id=?").get(videoId)) return c.json({ error: "restricted" }, 403);
+    }
+    try {
+      for (const videoId of videoIds) await ensureOnDemandVideo(videoId);
+    } catch (error) {
+      if (error instanceof OnDemandVideoImportError) return c.json({ error: error.message }, error.status);
+      throw error;
+    }
+    const icon = typeof body.icon === "string" && body.icon.trim() ? body.icon.trim() : "ListMusic";
+    const playlist = await database.transaction(async () => {
+      const nextOrder = await database.prepare("SELECT COALESCE(MAX(sort_order), -1) + 1 AS sort_order FROM user_playlists WHERE user_id = ?").get(uid) as { sort_order: number };
+      const row = await database.prepare(
+        "INSERT INTO user_playlists (name, icon, sort_order, user_id, portable_uuid) VALUES (?, ?, ?, ?, ?) RETURNING id, portable_uuid, name, icon, sort_order, created_at",
+      ).get(name, icon, nextOrder.sort_order, uid, crypto.randomUUID()) as Record<string, unknown>;
+      for (const [position, videoId] of videoIds.entries()) {
+        await database.prepare("INSERT INTO user_playlist_videos (playlist_id, video_id, position) VALUES (?, ?, ?)").run(row.id, videoId, position);
+      }
+      return row;
+    });
+    refreshDiscoveryInBackground(uid);
+    return c.json({ playlist });
   });
 
   api.put("/playlists/:id", async (c) => {

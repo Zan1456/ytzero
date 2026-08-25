@@ -25,8 +25,12 @@ export function adjacentFromOrder(ids: readonly string[], currentVideoId: string
 
 type OrderedPlaybackKind = Exclude<PlaybackContext["kind"], "feed">;
 
-export function adjacentFromPlaybackOrder(ids: readonly string[], currentVideoId: string, kind: OrderedPlaybackKind, direction: PlaybackDirection): string | null {
-  if (kind === "user-playlist" || kind === "channel-playlist") return nextFromOrder(ids, currentVideoId);
+export function adjacentFromPlaybackOrder(ids: readonly string[], currentVideoId: string, kind: OrderedPlaybackKind, direction: PlaybackDirection, relative: "next" | "previous" = "next"): string | null {
+  if (kind === "user-playlist" || kind === "channel-playlist" || kind === "session") {
+    if (relative === "next") return nextFromOrder(ids, currentVideoId);
+    const index = ids.indexOf(currentVideoId);
+    return index > 0 ? ids[index - 1] : null;
+  }
   return adjacentFromOrder(ids, currentVideoId, direction);
 }
 
@@ -84,6 +88,7 @@ export function watchlistOrder(rows: WatchlistRow[], sort: WatchlistSort, locale
 }
 
 async function orderedVideoIds(userId: number, context: Exclude<PlaybackContext, { kind: "feed" }>): Promise<string[]> {
+  if (context.kind === "session") return context.ids;
   if (context.kind === "liked") {
     const where = ["uv.user_id = ?", "uv.liked = 1", "v.published_at IS NOT NULL", "v.published_at != ''"];
     if (!context.showShorts || getUserSetting(userId, "show_shorts") === "disabled") where.push("COALESCE(v.is_short, 0) = 0");
@@ -117,8 +122,8 @@ async function orderedVideoIds(userId: number, context: Exclude<PlaybackContext,
   return watchlistOrder(rows, context.sort, locale);
 }
 
-export async function resolveAdjacentPlaybackVideoId(userId: number, currentVideoId: string, context: PlaybackContext, direction: PlaybackDirection): Promise<string | null> {
+export async function resolveAdjacentPlaybackVideoId(userId: number, currentVideoId: string, context: PlaybackContext, direction: PlaybackDirection, relative: "next" | "previous" = "next"): Promise<string | null> {
   if (context.kind === "feed") return feedAdjacent(userId, currentVideoId, context, direction);
   const ids = await orderedVideoIds(userId, context);
-  return adjacentFromPlaybackOrder(ids, currentVideoId, context.kind, direction);
+  return adjacentFromPlaybackOrder(ids, currentVideoId, context.kind, direction, relative);
 }

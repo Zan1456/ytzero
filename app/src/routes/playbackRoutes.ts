@@ -11,8 +11,13 @@ type ApiContext = Context<ApiEnvironment>;
 const contextOwnedBy = (context: Parameters<typeof playbackContextBelongsToUser>[0], userId: number) =>
   playbackContextBelongsToUser(context, userId, (sql, ...params) => database.prepare(sql).get(...params));
 
+export function persistsPlaybackContext(context: ReturnType<typeof parsePlaybackContext>): boolean {
+  return context?.kind !== "session";
+}
+
 export async function savePlaybackContext(userId: number, videoId: string, value: unknown): Promise<void> {
   const context = parsePlaybackContext(value);
+  if (!persistsPlaybackContext(context)) return;
   if (context && await contextOwnedBy(context, userId)) {
     await database.prepare(
       `INSERT INTO user_videos (user_id, video_id, playback_context_json) VALUES (?, ?, ?)
@@ -26,11 +31,12 @@ export async function savePlaybackContext(userId: number, videoId: string, value
 export function registerPlaybackRoutes(api: Api, currentUserId: (context: ApiContext) => number): void {
   api.post("/playback/adjacent", async (c) => {
     const uid = currentUserId(c);
-    const body = await c.req.json().catch(() => ({})) as { video_id?: unknown; direction?: unknown; context?: unknown };
+    const body = await c.req.json().catch(() => ({})) as { video_id?: unknown; direction?: unknown; relative?: unknown; context?: unknown };
     if (typeof body.video_id !== "string" || !await videoExistsStmt.get(body.video_id)) return c.json({ video_id: null });
     const context = parsePlaybackContext(body.context);
     if (!context || !await contextOwnedBy(context, uid)) return c.json({ video_id: null });
     const direction = body.direction === "oldest" ? "oldest" : "newest";
-    return c.json({ video_id: await resolveAdjacentPlaybackVideoId(uid, body.video_id, context, direction) });
+    const relative = body.relative === "previous" ? "previous" : "next";
+    return c.json({ video_id: await resolveAdjacentPlaybackVideoId(uid, body.video_id, context, direction, relative) });
   });
 }

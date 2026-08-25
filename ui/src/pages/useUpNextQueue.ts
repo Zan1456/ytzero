@@ -2,12 +2,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { NavigateFunction } from "react-router-dom";
 import { api, type Video } from "../api";
 import type { PlaybackQueueContext } from "../playbackQueue";
+import { sessionPlayQueueItems } from "../sessionPlayQueue";
 
 type Direction = "oldest" | "newest";
 
-async function resolveNextVideo(queue: PlaybackQueueContext, videoId: string, direction: Direction) {
-  const result = await api.playbackAdjacent(videoId, direction, queue);
-  return result.video_id ? api.video(result.video_id).then((videoResult) => ({ video: videoResult.video })) : { video: null };
+export type QueueDisplayVideo = Pick<Video, "video_id" | "title" | "thumbnail" | "channel_title">;
+async function resolveNextVideo(queue: PlaybackQueueContext, videoId: string, direction: Direction, relative: "next" | "previous" = "next"): Promise<{ video: QueueDisplayVideo | null }> {
+  const result = await api.playbackAdjacent(videoId, direction, queue, relative);
+  if (!result.video_id) return { video: null };
+  try { return { video: (await api.video(result.video_id)).video }; }
+  catch {
+    const fallback = queue.kind === "session" ? sessionPlayQueueItems().find((item) => item.video_id === result.video_id) : null;
+    return { video: fallback ?? null };
+  }
 }
 
 export function useUpNextQueue({ currentVideoId, direction, navigate, queue }: {
@@ -17,20 +24,27 @@ export function useUpNextQueue({ currentVideoId, direction, navigate, queue }: {
   queue: PlaybackQueueContext | null;
 }) {
   const requestRef = useRef(0);
-  const [prefetched, setPrefetched] = useState<Video | null>(null);
-  const [video, setVideo] = useState<Video | null>(null);
+  const [prefetched, setPrefetched] = useState<QueueDisplayVideo | null>(null);
+  const [video, setVideo] = useState<QueueDisplayVideo | null>(null);
+  const [previous, setPrevious] = useState<QueueDisplayVideo | null>(null);
   const [loadingNext, setLoadingNext] = useState(false);
 
   useEffect(() => {
     requestRef.current++;
     setLoadingNext(false);
     setPrefetched(null);
+    setPrevious(null);
     setVideo(null);
     if (!currentVideoId || !queue) return;
     let cancelled = false;
     resolveNextVideo(queue, currentVideoId, direction)
       .then((result) => { if (!cancelled) setPrefetched(result.video); })
       .catch(() => { if (!cancelled) setPrefetched(null); });
+    if (queue.kind === "session" || queue.kind === "user-playlist" || queue.kind === "channel-playlist") {
+      resolveNextVideo(queue, currentVideoId, direction, "previous")
+        .then((result) => { if (!cancelled) setPrevious(result.video); })
+        .catch(() => { if (!cancelled) setPrevious(null); });
+    }
     return () => { cancelled = true; };
   }, [currentVideoId, direction, queue]);
 
@@ -42,6 +56,11 @@ export function useUpNextQueue({ currentVideoId, direction, navigate, queue }: {
     if (!prefetched) return;
     navigate(`/watch/${prefetched.video_id}`, queue ? { state: { playbackQueue: queue } } : undefined);
   }, [navigate, prefetched, queue]);
+
+  const playPrevious = useCallback(() => {
+    if (!previous) return;
+    navigate(`/watch/${previous.video_id}`, queue ? { state: { playbackQueue: queue } } : undefined);
+  }, [navigate, previous, queue]);
 
   const play = useCallback(() => {
     if (!video) return;
@@ -71,5 +90,5 @@ export function useUpNextQueue({ currentVideoId, direction, navigate, queue }: {
     setVideo(null);
   }, []);
 
-  return { dismiss, hasPrefetched: Boolean(prefetched), loadingNext, play, playPrefetched, prefetched, show, skip, video };
+  return { dismiss, hasPrefetched: Boolean(prefetched), hasPrevious: Boolean(previous), loadingNext, play, playPrefetched, playPrevious, prefetched, previous, show, skip, video };
 }

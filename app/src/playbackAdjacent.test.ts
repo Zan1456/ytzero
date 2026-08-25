@@ -16,10 +16,11 @@ describe("playback context adjacency", () => {
   });
 
   test("ignores feed direction for user and channel playlist orders only", () => {
-    for (const kind of ["user-playlist", "channel-playlist"] as const) {
+    for (const kind of ["user-playlist", "channel-playlist", "session"] as const) {
       expect(adjacentFromPlaybackOrder(["a", "b", "c"], "b", kind, "newest")).toBe("c");
       expect(adjacentFromPlaybackOrder(["a", "b", "c"], "b", kind, "oldest")).toBe("c");
     }
+    expect(adjacentFromPlaybackOrder(["a", "b", "c"], "b", "session", "newest", "previous")).toBe("a");
     expect(adjacentFromPlaybackOrder(["a", "b", "c"], "b", "history", "oldest")).toBe("a");
   });
 

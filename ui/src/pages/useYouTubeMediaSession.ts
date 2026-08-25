@@ -11,12 +11,16 @@ export function useYouTubeMediaSession({
   playerRef,
   video,
   watchTogetherTransportLocked,
+  onNext,
+  onPrevious,
 }: {
   audioActive: boolean;
   playerKind: PlayerKind;
   playerRef: RefObject<WatchPlayerHandle | null>;
   video: Video | null;
   watchTogetherTransportLocked: boolean;
+  onNext?: () => void;
+  onPrevious?: () => void;
 }) {
   useEffect(() => {
     if (playerKind !== "youtube" || audioActive || !video || !("mediaSession" in navigator)) return;
@@ -60,8 +64,10 @@ export function useYouTubeMediaSession({
             .catch(() => playerRef.current?.seekTo?.(details.seekTime!, true));
         }
       });
+      setHandler("nexttrack", onNext ?? null);
+      setHandler("previoustrack", onPrevious ?? null);
     } else {
-      for (const action of ["play", "pause", "seekbackward", "seekforward", "seekto", "stop"] as MediaSessionAction[]) {
+      for (const action of ["play", "pause", "seekbackward", "seekforward", "seekto", "nexttrack", "previoustrack", "stop"] as MediaSessionAction[]) {
         setHandler(action, () => {});
       }
     }
@@ -71,9 +77,9 @@ export function useYouTubeMediaSession({
         mediaSession.metadata = null;
         mediaSession.playbackState = "none";
       } catch {}
-      for (const action of ["play", "pause", "seekbackward", "seekforward", "seekto", "stop"] as MediaSessionAction[]) {
+      for (const action of ["play", "pause", "seekbackward", "seekforward", "seekto", "nexttrack", "previoustrack", "stop"] as MediaSessionAction[]) {
         setHandler(action, null);
       }
     };
-  }, [audioActive, playerKind, playerRef, video?.video_id, video?.title, video?.channel_title, video?.thumbnail, watchTogetherTransportLocked]);
+  }, [audioActive, playerKind, playerRef, video?.video_id, video?.title, video?.channel_title, video?.thumbnail, watchTogetherTransportLocked, onNext, onPrevious]);
 }

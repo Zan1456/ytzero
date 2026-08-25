@@ -1,0 +1,11 @@
+.session-queue-trigger { position: relative; }
+.session-queue-count { position: absolute; top: -5px; right: -7px; min-width: 18px; justify-content: center; }
+.session-queue-menu { width: min(360px, calc(100vw - 24px)); }
+.session-queue-menu__head, .session-queue-menu__save { display: flex; align-items: center; gap: 8px; }
+.session-queue-menu__head { justify-content: space-between; margin-bottom: 8px; }
+.session-queue-menu__list { max-height: min(52vh, 380px); overflow: auto; }
+.session-queue-menu__list .ui-list-row__media img { width: 64px; height: 40px; border-radius: 5px; object-fit: cover; }
+.session-queue-menu__number { width: 24px; text-align: center; color: var(--muted); }
+.session-queue-menu__save { margin-top: 10px; }
+.session-queue-menu__save .ui-input { min-width: 0; }
+.session-queue-menu__clear { margin-top: 4px; }
