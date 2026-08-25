@@ -1,13 +1,14 @@
 import { Captions, Check, LoaderCircle } from "lucide-react";
 import { useState } from "react";
-import type { VideoSubtitle } from "../api";
+import type { AvailableSubtitle, VideoSubtitle } from "../api";
 import { useI18n } from "../i18n";
-import { SUBTITLE_LANGUAGES, subtitleLanguageLabel } from "../subtitleLanguages";
+import { subtitleLanguageLabel } from "../subtitleLanguages";
 import { FloatingPopover, Menu, MenuItem, MenuSeparator, ScrollArea, Switch } from "./ui";
 
 interface SubtitlePickerProps {
   videoId?: string;
   subtitles: VideoSubtitle[];
+  available: AvailableSubtitle[];
   selectedLanguage: string | null;
   preferredLanguages: string[];
   loadingLanguage: string | null;
@@ -19,6 +20,7 @@ interface SubtitlePickerProps {
 export default function SubtitlePicker({
   videoId,
   subtitles,
+  available,
   selectedLanguage,
   preferredLanguages,
   loadingLanguage,
@@ -31,12 +33,14 @@ export default function SubtitlePicker({
 
   if (!videoId) return null;
 
+  const availableByLanguage = new Map(available.map((subtitle) => [subtitle.lang, subtitle]));
   const downloadedLanguages = new Set(subtitles.map((subtitle) => subtitle.lang));
-  const preferred = [...new Set(preferredLanguages.filter(Boolean))];
-  const preferredSet = new Set(preferred);
+  const preferred = [...new Set(preferredLanguages.filter(Boolean))]
+    .map((language) => availableByLanguage.get(language))
+    .filter((language): language is AvailableSubtitle => Boolean(language));
+  const preferredSet = new Set(preferred.map((language) => language.lang));
   const downloaded = subtitles.filter((subtitle) => !preferredSet.has(subtitle.lang));
-  const remaining = SUBTITLE_LANGUAGES.filter((language) =>
-    !downloadedLanguages.has(language.code) && !preferredSet.has(language.code));
+  const remaining = available.filter((subtitle) => !downloadedLanguages.has(subtitle.lang) && !preferredSet.has(subtitle.lang));
   const select = (language: string) => {
     setOpen(false);
     onSelect(language);
@@ -80,13 +84,13 @@ export default function SubtitlePicker({
           <Menu>
             {preferred.map((language) => (
               <MenuItem
-                key={language}
-                selected={selectedLanguage === language}
+                key={language.lang}
+                selected={selectedLanguage === language.lang}
                 disabled={loadingLanguage != null}
-                onClick={() => select(language)}
-                suffix={status(language)}
+                onClick={() => select(language.lang)}
+                suffix={status(language.lang)}
               >
-                {subtitleLanguageLabel(language)}
+                {language.label}
               </MenuItem>
             ))}
             {preferred.length > 0 && (downloaded.length > 0 || remaining.length > 0) && <MenuSeparator />}
@@ -97,19 +101,20 @@ export default function SubtitlePicker({
                 onClick={() => select(subtitle.lang)}
                 suffix={status(subtitle.lang)}
               >
-                {subtitleLanguageLabel(subtitle.lang)}
+                {subtitle.label ?? subtitleLanguageLabel(subtitle.lang)}
               </MenuItem>
             ))}
             {remaining.map((language) => (
               <MenuItem
-                key={language.code}
-                disabled={loadingLanguage != null}
-                onClick={() => select(language.code)}
-                suffix={status(language.code)}
-              >
+              key={language.lang}
+              disabled={loadingLanguage != null}
+              onClick={() => select(language.lang)}
+              suffix={status(language.lang)}
+            >
                 {language.label}
               </MenuItem>
             ))}
+            {available.length === 0 && <MenuItem disabled>{t("subtitlesNoneAvailable")}</MenuItem>}
           </Menu>
           </ScrollArea>
       </FloatingPopover>

@@ -197,7 +197,7 @@ export async function listSubtitleFiles(videoId: string): Promise<SubtitleFile[]
  * wasn't downloaded with the video). --skip-download makes this a quick,
  * metadata-only yt-dlp run writing next to the existing file.
  */
-async function fetchSubtitleSidecars(userId: number, videoId: string, langs: string, options: SubtitleFetchOptions): Promise<boolean> {
+async function fetchSubtitleSidecars(userId: number, videoId: string, langs: string, options: SubtitleFetchOptions): Promise<{ ok: boolean; rateLimited: boolean }> {
   const base = await outputBaseFor(videoId) ?? videoId;
   mkdirSync(dirname(join(DOWNLOADS_DIR, base)), { recursive: true });
   const args = [
@@ -229,15 +229,42 @@ async function fetchSubtitleSidecars(userId: number, videoId: string, langs: str
         error: stderrTail.at(-1) ?? `yt-dlp exited with code ${code}`,
       });
     }
-    return code === 0;
+    return { ok: code === 0, rateLimited: /429|too many requests|rate.?limit/i.test(stderrTail.join(" ")) };
   } catch (e) {
     log.warn("downloads.subtitles_skipped", { videoId, langs, error: e instanceof Error ? e.message : String(e) });
-    return false;
+    return { ok: false, rateLimited: /429|too many requests|rate.?limit/i.test(e instanceof Error ? e.message : String(e)) };
   }
 }
 
-export async function fetchSubtitles(userId: number, videoId: string, lang: string): Promise<boolean> {
-  return fetchSubtitleSidecars(userId, videoId, lang, { manual: true, automatic: true });
+const SUBTITLE_RATE_LIMIT_RETRY_MS = 1_500;
+
+export interface SubtitleTrackAttempt {
+  downloaded: boolean;
+  rateLimited: boolean;
+}
+
+/** Bounded fallback policy shared by real yt-dlp calls and regression tests. */
+export async function fetchSubtitleTracks(
+  tracks: string[],
+  fetchTrack: (track: string) => Promise<SubtitleTrackAttempt>,
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+): Promise<boolean> {
+  for (const track of [...new Set(tracks)]) {
+    const first = await fetchTrack(track);
+    if (first.downloaded) return true;
+    if (!first.rateLimited) continue;
+    await wait(SUBTITLE_RATE_LIMIT_RETRY_MS);
+    if ((await fetchTrack(track)).downloaded) return true;
+  }
+  return false;
+}
+
+/** Fetch the real tracks behind one display language, retrying a 429 once. */
+export async function fetchSubtitles(userId: number, videoId: string, tracks: string[]): Promise<boolean> {
+  return fetchSubtitleTracks(tracks, async (track) => {
+    const result = await fetchSubtitleSidecars(userId, videoId, track, { manual: true, automatic: true });
+    return { downloaded: result.ok && (await listSubtitleFiles(videoId)).some((file) => file.lang === track), rateLimited: result.rateLimited };
+  });
 }
 
 /** Naive SRT → WebVTT conversion, enough for <track> playback. */

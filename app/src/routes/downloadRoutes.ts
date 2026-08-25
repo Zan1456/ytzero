@@ -4,10 +4,11 @@ import { publishAppEvent } from "../appEvents";
 import { database } from "../database";
 import { getUserSetting } from "../db";
 import { childLocalOnly, isChildUser } from "../childTime";
-import { DOWNLOADS_ADMIN_SETTING_KEYS, downloadCookiesConfigured, downloadSettings, profileDownloadsEnabled, removeDownloadCookies, saveDownloadCookies, setDownloadSettings, setProfileDownloadsEnabled } from "../downloadConfig";
+import { DOWNLOADS_ADMIN_SETTING_KEYS, dlSettings, downloadCookiesConfigured, downloadSettings, profileDownloadsEnabled, removeDownloadCookies, saveDownloadCookies, setDownloadSettings, setProfileDownloadsEnabled } from "../downloadConfig";
 import { activeDownloadProgress, cancelAllPendingDownloads, downloadStats, downloadStatusSummary, enqueueDownload, fetchSubtitles, getDirectVideoResponse, getDownload, getHlsPlaylist, getHlsResource, getHlsSegment, hasHlsSession, invalidateAudioSources, invalidateDirectVideoSources, isSegmentName, listDownloads, listSubtitleFiles, liveStreamEnabled, prioritizeDownload, removeDownload, setDownloadPinned, srtToVtt, ytdlpJavascriptRuntimeStatus, ytdlpStatus } from "../downloader";
 import { createDownloadRule, deleteDownloadRule, DownloadRuleValidationError, listDownloadRules, previewDownloadRule, updateDownloadRule, type DownloadRuleInput } from "../downloadRules";
-import { SUBTITLE_LANGUAGE_CODES } from "../subtitleLanguages";
+import { availableSubtitlesForVideo, normalizeSubtitleLanguage, type AvailableSubtitle } from "../subtitleAvailability";
+import { subtitleLanguageLabel } from "../subtitleLanguages";
 import { configuredTimeZone } from "../timeZone";
 import { tubeArchivistResource, tubeArchivistSubtitleList, tubeArchivistSubtitleResponse } from "../tubeArchivist";
 import { registerAudioRoutes } from "./audioRoutes";
@@ -345,17 +346,64 @@ registerAudioRoutes(api, currentUserId);
 // ---------- subtitles for the local player ----------
 
 async function subtitleList(videoId: string) {
-  return (await listSubtitleFiles(videoId)).map((s) => ({
-    lang: s.lang,
-    url: `/api/videos/${videoId}/subtitles/${encodeURIComponent(s.lang)}`,
-  }));
+  const grouped = new Map<string, { lang: string; url: string; label: string; raw: string }>();
+  for (const subtitle of await listSubtitleFiles(videoId)) {
+    const lang = normalizeSubtitleLanguage(subtitle.lang);
+    const current = grouped.get(lang);
+    // A literal language code is the most intuitive local default. Keep a
+    // suffixed track only when it is the sole successful fallback on disk.
+    if (current && (current.raw === lang || subtitle.lang !== lang)) continue;
+    grouped.set(lang, {
+      lang,
+      label: subtitleLanguageLabel(lang),
+      raw: subtitle.lang,
+      url: `/api/videos/${encodeURIComponent(videoId)}/subtitles/${encodeURIComponent(subtitle.lang)}`,
+    });
+  }
+  return [...grouped.values()].map(({ raw: _raw, ...subtitle }) => subtitle);
+}
+
+async function subtitlePreferences(userId: number, videoId: string): Promise<string[]> {
+  const settings = await dlSettings(userId);
+  const row = await database.prepare(`
+    SELECT uc.caption_mode, uc.caption_language
+    FROM videos v LEFT JOIN user_channels uc ON uc.channel_id=v.channel_id AND uc.user_id=?
+    WHERE v.video_id=?
+  `).get(userId, videoId) as { caption_mode: string | null; caption_language: string | null } | null;
+  return [...new Set([
+    getUserSetting(userId, "player_cc_lang"),
+    getUserSetting(userId, "player_hl"),
+    ...String(settings.sub_langs ?? "").split(",").map((language) => language.trim()),
+    row?.caption_mode === "language" ? row.caption_language : null,
+  ].filter((language): language is string => typeof language === "string" && language.length > 0))];
+}
+
+function mergeAvailableSubtitles(available: AvailableSubtitle[], downloaded: Array<{ lang: string; url: string; label: string }>): AvailableSubtitle[] {
+  const merged = new Map(available.map((subtitle) => [subtitle.lang, subtitle]));
+  for (const subtitle of downloaded) {
+    if (!merged.has(subtitle.lang)) merged.set(subtitle.lang, { lang: subtitle.lang, label: subtitle.label, tracks: [] });
+  }
+  return [...merged.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function serializeAvailableSubtitles(available: AvailableSubtitle[]) {
+  return available.map(({ lang, label }) => ({ lang, label }));
 }
 
 api.get("/videos/:id/subtitles", async (c) => {
-  if (!await getDownload(currentUserId(c), c.req.param("id"))) {
-    return c.json({ subtitles: await tubeArchivistSubtitleList(c.req.param("id")) ?? [] });
+  const uid = currentUserId(c);
+  const videoId = c.req.param("id");
+  if (!await getDownload(uid, videoId)) {
+    const subtitles = await tubeArchivistSubtitleList(videoId) ?? [];
+    return c.json({ subtitles, available: subtitles.map((subtitle) => ({ lang: subtitle.lang, label: subtitleLanguageLabel(subtitle.lang) })) });
   }
-  return c.json({ subtitles: await subtitleList(c.req.param("id")) });
+  const subtitles = await subtitleList(videoId);
+  try {
+    const available = mergeAvailableSubtitles(await availableSubtitlesForVideo(uid, videoId, await subtitlePreferences(uid, videoId)), subtitles);
+    return c.json({ subtitles, available: serializeAvailableSubtitles(available) });
+  } catch {
+    return c.json({ subtitles, available: subtitles.map(({ lang, label }) => ({ lang, label })) });
+  }
 });
 
 api.get("/videos/:id/subtitles/:lang", async (c) => {
@@ -381,13 +429,21 @@ api.post("/videos/:id/subtitles", async (c) => {
   const id = c.req.param("id");
   if (!await getDownload(uid, id)) return c.json({ error: "not downloaded" }, 404);
   const { lang } = await c.req.json().catch(() => ({}));
-  if (typeof lang !== "string" || !SUBTITLE_LANGUAGE_CODES.has(lang)) {
+  if (typeof lang !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(lang)) {
     return c.json({ error: "invalid language" }, 400);
   }
   if (!await videoExistsStmt.get(id)) return c.json({ error: "not found" }, 404);
-  const ok = await fetchSubtitles(uid, id, lang);
+  let available: AvailableSubtitle[];
+  try {
+    available = await availableSubtitlesForVideo(uid, id, await subtitlePreferences(uid, id));
+  } catch {
+    return c.json({ error: "subtitle availability unavailable" }, 502);
+  }
+  const selected = available.find((subtitle) => subtitle.lang === lang);
+  if (!selected) return c.json({ error: "subtitle unavailable" }, 400);
+  const ok = await fetchSubtitles(uid, id, selected.tracks);
   const subtitles = await subtitleList(id);
-  return c.json({ ok, downloaded: subtitles.some((s) => s.lang === lang), subtitles });
+  return c.json({ ok, downloaded: subtitles.some((s) => s.lang === lang), subtitles, available: serializeAvailableSubtitles(mergeAvailableSubtitles(available, subtitles)) });
 });
 
 // Download a locally saved video as a file rather than streaming it in the

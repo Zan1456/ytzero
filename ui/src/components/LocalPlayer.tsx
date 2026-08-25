@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { ArrowDownToLine, Camera, Clapperboard, LoaderCircle, Maximize, Minimize, MonitorPlay, Pause, PictureInPicture2, Play, Volume2, VolumeX } from "lucide-react";
-import type { SponsorSegment, VideoChapter, VideoSubtitle } from "../api";
+import type { AvailableSubtitle, SponsorSegment, VideoChapter, VideoSubtitle } from "../api";
 import { api, SB_CATEGORIES } from "../api";
 import { subtitleLanguageLabel } from "../subtitleLanguages";
 import { useI18n } from "../i18n";
@@ -159,6 +159,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   // ---------- subtitles ----------
   const trackRef = useRef<HTMLTrackElement>(null);
   const [subs, setSubs] = useState<VideoSubtitle[]>([]);
+  const [availableSubs, setAvailableSubs] = useState<AvailableSubtitle[]>([]);
   const [subLang, setSubLang] = useState<string | null>(null);
   const [subLoading, setSubLoading] = useState<string | null>(null);
   const [subError, setSubError] = useState<string | null>(null);
@@ -172,13 +173,16 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
     api.videoSubtitles(videoId).then((r) => {
       if (cancelled) return;
       setSubs(r.subtitles);
+      setAvailableSubs(r.available);
       if (!ccDefaultOn || !ccDefaultLang) return;
+      if (!r.available.some((subtitle) => subtitle.lang === ccDefaultLang)) return;
       if (r.subtitles.some((s) => s.lang === ccDefaultLang)) {
         setSubLang(ccDefaultLang);
       } else {
         api.downloadSubtitle(videoId, ccDefaultLang).then((res) => {
           if (cancelled) return;
           setSubs(res.subtitles);
+          setAvailableSubs(res.available);
           if (res.downloaded) setSubLang(ccDefaultLang);
         }).catch(() => {});
       }
@@ -201,6 +205,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
     try {
       const r = await api.downloadSubtitle(videoId, lang);
       setSubs(r.subtitles);
+      setAvailableSubs(r.available);
       if (r.downloaded) setSubLang(lang);
       else setSubError(lang);
     } catch {
@@ -247,9 +252,10 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
       void pickSubLang(null);
       return;
     }
-    const preferred = subs.find((sub) => sub.lang === ccDefaultLang)?.lang ?? subs[0]?.lang ?? ccDefaultLang ?? null;
+    const preferred = availableSubs.some((subtitle) => subtitle.lang === ccDefaultLang) ? ccDefaultLang
+      : subs[0]?.lang ?? availableSubs[0]?.lang ?? null;
     if (preferred) void pickSubLang(preferred);
-  }, [ccDefaultLang, pickSubLang, subLang, subs]);
+  }, [availableSubs, ccDefaultLang, pickSubLang, subLang, subs]);
   const changeSubtitleSize = (direction: -1 | 1) => {
     const next = Math.min(48, Math.max(12, subStyle.size + direction * 2));
     if (next !== subStyle.size) onSubtitleSizeChange?.(next);
@@ -670,7 +676,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
             kind="subtitles"
             src={activeSub.url}
             srcLang={activeSub.lang}
-            label={subtitleLanguageLabel(activeSub.lang)}
+            label={activeSub.label ?? subtitleLanguageLabel(activeSub.lang)}
             default
           />
         )}
@@ -772,6 +778,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
           <SubtitlePicker
             videoId={videoId}
             subtitles={subs}
+            available={availableSubs}
             selectedLanguage={subLang}
             preferredLanguages={preferredSubtitleLanguages}
             loadingLanguage={subLoading}

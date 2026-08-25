@@ -86,6 +86,7 @@ import {
   type VideoCreator,
   type VideoDownload,
   type VideoInfo,
+  type AvailableSubtitle,
   type VideoSubtitle,
   type YtdlpConfig,
   type YtdlpUpdateResult,
@@ -233,9 +234,9 @@ export const api = {
   audioHlsUrl: (id: string) => `/api/videos/${id}/audio/index.m3u8`,
   liveAudioUrl: (id: string) => `/api/videos/${id}/audio-live/index.m3u8`,
   retryAudio: (id: string) => http<{ ok: true; live: boolean }>(`/videos/${id}/audio/retry`, { method: "POST", body: "{}" }),
-  videoSubtitles: (id: string) => http<{ subtitles: VideoSubtitle[] }>(`/videos/${id}/subtitles`),
+  videoSubtitles: (id: string) => http<{ subtitles: VideoSubtitle[]; available: AvailableSubtitle[] }>(`/videos/${id}/subtitles`),
   downloadSubtitle: (id: string, lang: string) =>
-    http<{ ok: boolean; downloaded: boolean; subtitles: VideoSubtitle[] }>(`/videos/${id}/subtitles`, { method: "POST", body: JSON.stringify({ lang }) }),
+    http<{ ok: boolean; downloaded: boolean; subtitles: VideoSubtitle[]; available: AvailableSubtitle[] }>(`/videos/${id}/subtitles`, { method: "POST", body: JSON.stringify({ lang }) }),
   videoTranscript: (id: string, language: string) =>
     http<{ language: string; transcript: string }>(`/videos/${id}/transcript`, { method: "POST", body: JSON.stringify({ language }) }),
   downloadFileUrl: (id: string) => `/api/videos/${id}/file`,

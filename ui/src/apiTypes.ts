@@ -435,6 +435,12 @@ export type { SocialWatchParty, SocialWatchPartyEvent, SocialWatchPartyMessage, 
 export interface VideoSubtitle {
   lang: string;
   url: string;
+  label?: string;
+}
+
+export interface AvailableSubtitle {
+  lang: string;
+  label: string;
 }
 
 export type DownloadStatus = "queued" | "downloading" | "done" | "error";

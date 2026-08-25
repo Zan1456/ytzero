@@ -342,6 +342,7 @@ export const de: Locale = {
     subtitlesDownloaded: "Heruntergeladen",
     subtitlesAllLanguages: "Alle Sprachen",
     subtitlesUnavailable: "nicht verfügbar",
+    subtitlesNoneAvailable: "Keine Untertitel verfügbar",
     searchLanguagePlaceholder: "Sprache suchen...",
     subtitleStyleTitle: "Untertitel-Stil",
     subtitleStyleHint: "So sehen Untertitel im lokalen Player aus.",

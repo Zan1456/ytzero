@@ -82,3 +82,9 @@ export const SUBTITLE_LANGUAGES: SubtitleLanguage[] = [
 ];
 
 export const SUBTITLE_LANGUAGE_CODES = new Set(SUBTITLE_LANGUAGES.map((l) => l.code));
+
+const subtitleLanguageLabels = new Map(SUBTITLE_LANGUAGES.map((language) => [language.code, language.label]));
+
+export function subtitleLanguageLabel(code: string): string {
+  return subtitleLanguageLabels.get(code) ?? code;
+}

@@ -342,6 +342,7 @@ export const en = {
     subtitlesDownloaded: "Downloaded",
     subtitlesAllLanguages: "All languages",
     subtitlesUnavailable: "unavailable",
+    subtitlesNoneAvailable: "No subtitles available",
     searchLanguagePlaceholder: "Search language...",
     subtitleStyleTitle: "Subtitle style",
     subtitleStyleHint: "How subtitles look in the local player.",
