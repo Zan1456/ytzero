@@ -1,8 +1,15 @@
-import { Play, SkipForward } from "lucide-react";
+import { Headphones, Play, SkipForward } from "lucide-react";
 import type { Video } from "../api";
+import { rememberProfileAudioMode } from "../audioModePreference";
 import { useI18n } from "../i18n";
 import { playlistContinueTarget } from "../playlistPlayback";
-import { Button } from "./ui";
+import { rememberedProfileId } from "../profilePreference";
+import { MenuItem, SplitButton } from "./ui";
+
+export function playPlaylistVideo(video: Video, audioOnly: boolean, onPlay: (video: Video) => void): void {
+  rememberProfileAudioMode(rememberedProfileId(), audioOnly);
+  onPlay(video);
+}
 
 export default function PlaylistPlaybackActions({ videos, disabled = false, onPlay }: {
   videos: readonly Video[];
@@ -16,22 +23,26 @@ export default function PlaylistPlaybackActions({ videos, disabled = false, onPl
 
   return <>
     {continuation && (
-      <Button
+      <SplitButton
         variant="primary"
         disabled={disabled}
         leadingIcon={<SkipForward />}
-        onClick={() => onPlay(continuation)}
+        onClick={() => playPlaylistVideo(continuation, false, onPlay)}
+        menuLabel={t("moreActions")}
+        menu={<MenuItem disabled={disabled} icon={<Headphones />} onClick={() => playPlaylistVideo(continuation, true, onPlay)}>{t("continueWatchingAudioOnly")}</MenuItem>}
       >
         {t("continueWatching")}
-      </Button>
+      </SplitButton>
     )}
-    <Button
+    <SplitButton
       variant={continuation ? "default" : "primary"}
       disabled={disabled}
       leadingIcon={<Play />}
-      onClick={() => onPlay(first)}
+      onClick={() => playPlaylistVideo(first, false, onPlay)}
+      menuLabel={t("moreActions")}
+      menu={<MenuItem disabled={disabled} icon={<Headphones />} onClick={() => playPlaylistVideo(first, true, onPlay)}>{t("playlistPlayAllAudioOnly")}</MenuItem>}
     >
       {t("playlistPlayAll")}
-    </Button>
+    </SplitButton>
   </>;
 }

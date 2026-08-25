@@ -19,7 +19,7 @@ export function SplitButton({ menu, menuLabel, align = "end", className, childre
       open={open}
       onOpenChange={setOpen}
       align={align}
-      trigger={<Button className="ui-split-button__toggle" variant={props.variant} size={props.size} iconOnly aria-label={menuLabel}><ChevronDown /></Button>}
+      trigger={<Button className="ui-split-button__toggle" variant={props.variant} size={props.size} disabled={props.disabled} iconOnly aria-label={menuLabel}><ChevronDown /></Button>}
     >
       <Menu>{menu}</Menu>
     </FloatingPopover>

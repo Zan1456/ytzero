@@ -8,15 +8,19 @@ screen and exposes system controls through the Media Session API.
 
 ## Using audio mode
 
-Open a video and use the audio/video control near the player controls. The
-current playback position is handed to the audio player when switching from a
-regular video and handed back when returning to video. Audio mode participates
-in the normal progress, completion, playlist, and continuous-playback flow.
+Open a video and use the audio/video control near the player controls. To start
+a playlist in audio mode, open the arrow menu beside **Play all** or **Continue
+watching** and choose the audio-only option; the main part of each button
+starts it in video mode. The current playback position is handed to the audio
+player when switching from a regular video and handed back when returning to
+video. Audio mode participates in the normal progress, completion, playlist,
+and continuous-playback flow.
 
 The choice is stored in browser `localStorage`, namespaced by the active
-profile. It remains enabled while navigating between videos, but only in that
-browser and for that profile. It is not a server setting, does not follow the
-profile to another device, and is not included in backups.
+profile. It remains enabled while navigating between videos, including the rest
+of a playlist started in audio mode, but only in that browser and for that
+profile. It is not a server setting, does not follow the profile to another
+device, and is not included in backups.
 
 ## Requirements and supported content
 
