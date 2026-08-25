@@ -91,11 +91,11 @@ export default function BookmarkEditor({ videoId, currentPlaybackSeconds, trigge
     <div role="dialog" aria-label={t("bookmarkAddTitle")}>
       <div className="bookmark-editor__title">{t("bookmarkAddTitle")}</div>
       {loading ? <div className="bookmark-editor__loading"><LoaderCircle className="spin" /> {t("loading")}</div> : <form className="bookmark-editor__form" onSubmit={save}>
-      {bookmarks.length > 0 && <div className="bookmark-editor__list">{bookmarks.map((item) => <div key={item.id} className="bookmark-editor__item"><span><strong>{formatBookmarkTime(item.position_seconds)}</strong>{item.description && <><span className="bookmark-editor__separator">—</span>{item.description}</>}</span><IconButton label={t("remove")} disabled={saving} onClick={() => void remove(item.id)}><Trash2 /></IconButton></div>)}</div>}
-      <Field label={t("bookmarkTimestampLabel")} hint={t("bookmarkTimestampHint")} htmlFor="bookmark-timestamp">
+      {bookmarks.length > 0 && <div className="bookmark-editor__list">{bookmarks.map((item) => <div key={item.id} className="bookmark-editor__item"><span><strong>{formatBookmarkTime(item.position_seconds)}</strong>{item.description && <><span className="bookmark-editor__separator">—</span>{item.description}</>}</span><IconButton size="sm" variant="ghost" label={t("remove")} disabled={saving} onClick={() => void remove(item.id)}><Trash2 /></IconButton></div>)}</div>}
+      <Field label={t("bookmarkTimestampLabel")} htmlFor="bookmark-timestamp">
         <Input id="bookmark-timestamp" inputMode="numeric" value={timestamp} onChange={(event) => setTimestamp(event.target.value)} placeholder="12:34" />
       </Field>
-      <Field label={t("bookmarkDescriptionLabel")} hint={t("bookmarkDescriptionHint")} htmlFor="bookmark-description">
+      <Field label={t("bookmarkDescriptionLabel")} htmlFor="bookmark-description">
         <Textarea id="bookmark-description" rows={4} maxLength={2000} value={description} onChange={(event) => setDescription(event.target.value)} placeholder={t("bookmarkDescriptionPlaceholder")} />
       </Field>
       {error && <Alert variant="danger">{error}</Alert>}

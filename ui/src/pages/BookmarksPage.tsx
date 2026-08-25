@@ -91,11 +91,19 @@ export default function BookmarksPage() {
       {groups.map((group) => <section key={group.key} className="bookmark-group">
         <SectionHeader title={group.label} />
         <div className="bookmark-list">
-          {group.bookmarks.map((bookmark) => {
-            const target = `/watch/${bookmark.video_id}?t=${Math.floor(bookmark.position_seconds)}`;
-            return <div key={`${group.key}:${bookmark.bookmark_id}`} className="bookmark-card">
+          {[...group.bookmarks.reduce((byVideo, bookmark) => {
+            const current = byVideo.get(bookmark.video_id);
+            if (current) current.push(bookmark);
+            else byVideo.set(bookmark.video_id, [bookmark]);
+            return byVideo;
+          }, new Map<string, BookmarkVideo[]>()).values()]
+            .sort((a, b) => Date.parse(b[0].bookmark_updated_at) - Date.parse(a[0].bookmark_updated_at))
+            .map((videoBookmarks) => {
+            const latest = videoBookmarks[0];
+            const target = `/watch/${latest.video_id}?t=${Math.floor(latest.position_seconds)}`;
+            return <div key={`${group.key}:${latest.video_id}`} className="bookmark-card">
               <VideoCard
-                video={bookmark}
+                video={latest}
                 onPlay={() => navigate(target)}
                 onChanged={() => {}}
                 readOnly
@@ -105,16 +113,19 @@ export default function BookmarksPage() {
                 searchResultLayout
               />
               <div className="bookmark-card__notes">
-                <div className="bookmark-card__note-row">
-                  <Link className="bookmark-card__time" to={target}>{formatBookmarkTime(bookmark.position_seconds)}</Link>
-                  <div className="bookmark-card__note-content">
-                    <span className="bookmark-card__date">{formatAppDateTime(bookmark.bookmarked_at, locale, timeZone)}</span>
-                    {bookmark.bookmark_description && <p>{bookmark.bookmark_description}</p>}
-                  </div>
-                  <Popconfirm message={t("bookmarkRemoveConfirm")} onConfirm={() => void remove(bookmark)}>
-                    <IconButton label={t("remove")} disabled={removing === bookmark.video_id}><Trash2 /></IconButton>
-                  </Popconfirm>
-                </div>
+                {videoBookmarks.sort((a, b) => b.position_seconds - a.position_seconds).map((bookmark) => {
+                  const bookmarkTarget = `/watch/${bookmark.video_id}?t=${Math.floor(bookmark.position_seconds)}`;
+                  return <div key={bookmark.bookmark_id} className="bookmark-card__note-row">
+                    <Link className="bookmark-card__time" to={bookmarkTarget}>{formatBookmarkTime(bookmark.position_seconds)}</Link>
+                    <div className="bookmark-card__note-content">
+                      <span className="bookmark-card__date">{formatAppDateTime(bookmark.bookmarked_at, locale, timeZone)}</span>
+                      {bookmark.bookmark_description && <p>{bookmark.bookmark_description}</p>}
+                    </div>
+                    <Popconfirm message={t("bookmarkRemoveConfirm")} onConfirm={() => void remove(bookmark)}>
+                      <IconButton label={t("remove")} disabled={removing === bookmark.video_id}><Trash2 /></IconButton>
+                    </Popconfirm>
+                  </div>;
+                })}
               </div>
             </div>;
           })}

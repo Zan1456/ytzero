@@ -10,6 +10,14 @@
 - Empty states: `EmptyState`'s illustrated `art` variant is reserved for primary destinations. Read `docs/illustrations.md` before adding or drawing one; everything else uses the plain `icon` variant.
 - Before adding CSS, identify its component or page owner. `ui/src/styles.css` is only for global foundations; component and page selectors belong beside their implementation.
 
+## Localization
+
+- Treat localization as part of every feature, not as follow-up work. Before completing any UI feature or user-visible behavior change, identify every added or changed string and update the translation catalogue in the same change.
+- Do not add hard-coded user-facing copy in components when an i18n message is appropriate. English in `ui/src/i18n/locales/en.ts` defines the key contract; add complete translations for every supported locale listed in `shared/uiLanguages.ts`.
+- English fallback values, empty strings, and placeholder translations are not completed localization. Preserve interpolation placeholders such as `{count}`, `{name}`, and `{time}` exactly in every locale. Product names and genuinely language-independent technical terms may remain unchanged.
+- When feature messages are shared or likely to grow together, extend the appropriate feature catalogue under `ui/src/i18n/locales/` instead of scattering keys. Follow `docs/localization.md` for catalogue structure and language-addition requirements.
+- Run the focused catalogue and formatting tests after changing UI copy: `bun test ui/src/i18nCatalog.test.ts ui/src/i18nFormatting.test.ts`. Also run the UI typecheck when message keys or locale modules change.
+
 ## Persistence and backup compatibility
 
 - Read `docs/backup-restore-architecture.md` before adding or changing persistent settings, database state, plugin state, profile-owned data, or files under `data/`.
