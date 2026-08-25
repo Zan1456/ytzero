@@ -45,8 +45,9 @@ function storedVolume(): number {
  * visible transport reuses the LocalPlayer control language.
  */
 const AudioModePlayer = forwardRef<WatchPlayerHandle, {
-  playlistSrc: string;
+  playlistSrc?: string;
   progressiveSrc?: string;
+  retryRemoteSource: boolean;
   videoId: string;
   live?: boolean;
   title?: string;
@@ -60,6 +61,7 @@ const AudioModePlayer = forwardRef<WatchPlayerHandle, {
 }>(function AudioModePlayer({
   playlistSrc,
   progressiveSrc,
+  retryRemoteSource,
   videoId,
   live = false,
   title,
@@ -94,7 +96,7 @@ const AudioModePlayer = forwardRef<WatchPlayerHandle, {
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [retryAttempts, setRetryAttempts] = useState(0);
   const [sourceRevision, setSourceRevision] = useState(0);
-  const retryPlaylistSrc = sourceRevision > 0
+  const retryPlaylistSrc = playlistSrc && sourceRevision > 0
     ? `${playlistSrc}${playlistSrc.includes("?") ? "&" : "?"}retry=${sourceRevision}`
     : playlistSrc;
   const retryProgressiveSrc = progressiveSrc && sourceRevision > 0
@@ -278,6 +280,10 @@ const AudioModePlayer = forwardRef<WatchPlayerHandle, {
     setPlaying(false);
     endedRef.current = false;
     setRetryAttempts(attempt);
+    if (!retryRemoteSource) {
+      setSourceRevision((revision) => revision + 1);
+      return;
+    }
     try {
       const result = await api.retryAudio(videoId);
       if (result.live !== live) return onReload?.();

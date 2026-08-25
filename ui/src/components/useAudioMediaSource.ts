@@ -11,7 +11,7 @@ export function useAudioMediaSource({
   audioRef: RefObject<HTMLAudioElement | null>;
   live: boolean;
   onFatalError: () => void;
-  playlistSrc: string;
+  playlistSrc?: string;
   progressiveSrc?: string;
 }): void {
   useEffect(() => {
@@ -49,18 +49,29 @@ export function useAudioMediaSource({
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
     audio.addEventListener("error", onMediaError);
 
+    const cleanup = () => {
+      cancelled = true;
+      hls?.destroy();
+      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      audio.removeEventListener("error", onMediaError);
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    };
+
+    // A completed download is a normal range-capable media file. Do not hand
+    // it to an HLS implementation: that would request a manifest that does
+    // not exist and delay local playback.
+    if (!playlistSrc) {
+      if (!attachProgressive()) fatal();
+      return cleanup;
+    }
+
     if (audio.canPlayType("application/vnd.apple.mpegurl")) {
       audio.src = playlistSrc;
       audio.load();
       tryPlay();
-      return () => {
-        cancelled = true;
-        audio.removeEventListener("loadedmetadata", onLoadedMetadata);
-        audio.removeEventListener("error", onMediaError);
-        audio.pause();
-        audio.removeAttribute("src");
-        audio.load();
-      };
+      return cleanup;
     }
 
     void import("hls.js").then(({ default: Hls }) => {
@@ -101,14 +112,6 @@ export function useAudioMediaSource({
       if (!cancelled && !attachProgressive()) fatal();
     });
 
-    return () => {
-      cancelled = true;
-      hls?.destroy();
-      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
-      audio.removeEventListener("error", onMediaError);
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
-    };
+    return cleanup;
   }, [audioRef, live, onFatalError, playlistSrc, progressiveSrc]);
 }

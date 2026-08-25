@@ -57,6 +57,7 @@ import WatchPlaylistPanel from "../components/watch/WatchPlaylistPanel";
 import WatchPlayerModeToggle from "../components/watch/WatchPlayerModeToggle";
 import WatchRestrictedPlayer from "../components/watch/WatchRestrictedPlayer";
 import { colonDurationToSeconds, formatWatchTime } from "./watchRuntime";
+import { resolveWatchAudioSources } from "./watchAudioMode";
 import { useWatchPageController } from "./useWatchPageController";
 import WatchPlayerFeedback from "./WatchPlayerFeedback";
 import { useProfileAudioMode } from "../audioModePreference";
@@ -228,10 +229,14 @@ export default function WatchPage() {
             >
               {audioActive && video ? (
                 <Suspense fallback={null}>
-                  <AudioModePlayer
+                  <AudioModePlayer {...resolveWatchAudioSources({
+                    videoId: video.video_id,
+                    liveStatus: video.live_status,
+                    downloadStatus: video.download_status,
+                    localMediaSource: video.local_media_source,
+                  })}
                     key={`${video.video_id}-${video.live_status}-audio-${sharedStartSeconds}`}
                     ref={playerRef}
-                    playlistSrc={video.live_status === "live" ? api.liveAudioUrl(video.video_id) : api.audioHlsUrl(video.video_id)} progressiveSrc={video.live_status === "live" ? undefined : api.audioUrl(video.video_id)}
                     live={video.live_status === "live"} videoId={video.video_id}
                     title={video.title} channelTitle={video.channel_title}
                     artworkUrl={img(video.thumbnail)}

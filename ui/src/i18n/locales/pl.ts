@@ -1112,7 +1112,7 @@ export const pl: Locale = {
     hideTagFromFilters: "Ukryty na paskach filtrów",
     hideTagFromFiltersHint: "Ukryj ten tag na paskach filtrów bez wpływu na widoczność oznaczonych nim filmów i kanałów",
     continueWatching: "Kontynuuj oglądanie",
-    continueWatchingAudioOnly: "Kontynuuj tylko jako dźwięk",
+    continueWatchingAudioOnly: "Kontynuuj (tylko dźwięk)",
     youtubeResults: "Wyniki z YouTube",
     localSearchChannels: "Pasujące kanały",
     localSearchVideos: "Z Twojej biblioteki",

@@ -24,12 +24,12 @@ device, and is not included in backups.
 
 ## Requirements and supported content
 
-The YT Zero server must have a working [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-installation and Deno 2.3 or newer available on `PATH`. Deno runs yt-dlp's
-JavaScript challenge solver for videos that YouTube does not expose without
-that step. The official Docker image and native installer bundle both. Audio
-mode is independent of the downloads plugin: it resolves and proxies audio on demand without
-writing a media file to disk or requiring downloads to be enabled.
+For videos without a local copy, the YT Zero server must have a working
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) installation and Deno 2.3 or newer
+available on `PATH`. Deno runs yt-dlp's JavaScript challenge solver for videos
+that YouTube does not expose without that step. The official Docker image and
+native installer bundle both. A completed download is played directly from the
+local file instead, so it does not require yt-dlp or access to YouTube.
 
 Audio mode is available for:
 
@@ -42,14 +42,18 @@ regular-video path after YouTube publishes a compatible audio format.
 
 ## How streaming works
 
-For regular videos, yt-dlp resolves an AAC stream in an MP4 container. When the
-source publishes an MP4 segment index (`sidx`), YT Zero exposes its existing
-fragments as a same-origin HLS VOD playlist. This lets a seek request the
-fragment at the target time directly, including in recordings many hours long.
-The index and fragments are read through the same bounded, validated byte-range
-proxy; there is no transcoding and signed upstream URLs are never exposed to
-the browser. Sources without a usable index fall back to the regular byte-range
-audio stream.
+For a completed download, the audio element reads the existing range-capable
+`/stream` response directly. It does not request an audio manifest, resolve a
+new source, or contact YouTube.
+
+For regular videos without a completed download, yt-dlp resolves an AAC stream
+in an MP4 container. When the source publishes an MP4 segment index (`sidx`),
+YT Zero exposes its existing fragments as a same-origin HLS VOD playlist. This
+lets a seek request the fragment at the target time directly, including in
+recordings many hours long. The index and fragments are read through the same
+bounded, validated byte-range proxy; there is no transcoding and signed upstream
+URLs are never exposed to the browser. Sources without a usable index fall back
+to the regular byte-range audio stream.
 
 Safari consumes the VOD playlist through its native HLS support. Other
 supported browsers use the same lazily loaded `hls.js` path as live audio. VOD
