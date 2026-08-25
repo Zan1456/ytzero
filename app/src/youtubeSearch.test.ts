@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parseAbbreviatedCount } from "./youtubeSearch";
-import { searchChannelFromLockup, searchVideoFromLockup } from "./youtube";
+import { collectSearchVideos, searchChannelFromLockup, searchVideoFromLockup } from "./youtube";
 
 // Shapes captured from a live youtube.com/results page after the migration
 // from videoRenderer/channelRenderer to lockupViewModel.
@@ -87,6 +87,7 @@ describe("searchVideoFromLockup", () => {
       title: "summer lofi & chill beats",
       thumbnail: "https://i.ytimg.com/large.jpg",
       duration: "1:01:01",
+      channelId: "UCSJ4gkVC6NrvII8umztf0Ow",
       channelTitle: "Lofi Girl",
       channelAvatar: "https://yt3/avatar.jpg",
       viewCount: 4_700_000,
@@ -96,6 +97,14 @@ describe("searchVideoFromLockup", () => {
 
   test("ignores non-video lockups", () => {
     expect(searchVideoFromLockup({ contentType: "LOCKUP_CONTENT_TYPE_PLAYLIST", contentId: "PL123" })).toBeNull();
+  });
+
+  test("reads the channel id from legacy video renderers", () => {
+    expect(collectSearchVideos({ videoRenderer: {
+      videoId: "legacy12345", title: { simpleText: "Legacy" },
+      ownerText: { runs: [{ text: "Owner", navigationEndpoint: { browseEndpoint: { browseId: "UCLEGACY" } } }] },
+      thumbnail: { thumbnails: [{ url: "legacy.jpg" }] },
+    } })).toMatchObject([{ videoId: "legacy12345", channelId: "UCLEGACY", channelTitle: "Owner" }]);
   });
 });
 

@@ -1,7 +1,7 @@
 import type { Context, Hono } from "hono";
 import { database } from "../database";
 import { enqueuePlaylistDownloads } from "../downloader";
-import { isChildUser } from "../childTime";
+import { childLocalOnly, isChildUser } from "../childTime";
 import { log } from "../logger";
 import { refreshDiscoveryInBackground } from "../plugins";
 import { applyPlaylistRuleToAllVideos, applyPlaylistRulesForPlaylist } from "../userPlaylists";
@@ -13,6 +13,7 @@ import { importPlaylistVideos } from "../refresher";
 import type { VideoRow } from "../videoRoutesSupport";
 import { downloadableUserPlaylistVideoIds, sortUserPlaylistRows, type UserPlaylistSortable } from "../userPlaylistSort";
 import { shortsUiVisibilitySql } from "../feedQuery";
+import { ensureOnDemandVideo, OnDemandVideoImportError } from "../onDemandVideoImport";
 
 type ApiEnvironment = { Variables: { userId: number; sessionAdmin?: boolean; profileAdmin?: boolean } };
 type Api = Hono<ApiEnvironment>;
@@ -119,6 +120,15 @@ export function registerUserPlaylistRoutes(
     const { video_id } = await c.req.json();
     if (!video_id) return c.json({ error: "video_id required" }, 400);
     if (!await ownsPlaylist(uid, c.req.param("id"))) return c.json({ error: "not found" }, 404);
+    if (!await database.prepare("SELECT 1 FROM videos WHERE video_id = ?").get(video_id)) {
+      if (childLocalOnly(uid)) return c.json({ error: "restricted" }, 403);
+      try {
+        await ensureOnDemandVideo(video_id);
+      } catch (error) {
+        if (error instanceof OnDemandVideoImportError) return c.json({ error: error.message }, error.status);
+        throw error;
+      }
+    }
     await database.prepare(`INSERT OR IGNORE INTO user_playlist_videos (playlist_id, video_id, position)
       SELECT ?, ?, COALESCE(MAX(position), -1) + 1 FROM user_playlist_videos WHERE playlist_id = ?`)
       .run(c.req.param("id"), video_id, c.req.param("id"));

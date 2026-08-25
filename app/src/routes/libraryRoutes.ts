@@ -1,6 +1,7 @@
 import type { Context, Hono } from "hono";
 import { database } from "../database";
-import { childLocalOnly } from "../childTime";
+import { childLocalOnly, isChildUser } from "../childTime";
+import { profileDownloadsEnabled } from "../downloadConfig";
 import { cancelAutoDownloadIfUnwanted } from "../downloader";
 import { refreshDiscoveryInBackground } from "../plugins";
 import { searchYouTube } from "../youtube";
@@ -103,8 +104,24 @@ api.get("/search/youtube", async (c) => {
   if (!q?.trim()) return c.json({ results: [] });
   try {
     const search = await searchYouTube(q.trim());
+    const watched = await attachWatchedState(uid, search.results, (result) => result.videoId);
+    const ids = watched.map((result) => result.videoId);
+    const placeholders = ids.map(() => "?").join(",");
+    const downloads = ids.length === 0 ? [] : await database.prepare(
+      `SELECT owner.video_id, d.status
+       FROM download_owners owner JOIN downloads d ON d.video_id = owner.video_id
+       WHERE owner.user_id = ? AND owner.video_id IN (${placeholders})`,
+    ).all(uid, ...ids) as { video_id: string; status: string }[];
+    const downloadStatus = new Map(downloads.map((download) => [download.video_id, download.status]));
+    const downloadsAllowed = !await isChildUser(uid);
+    const downloadsEnabled = downloadsAllowed && await profileDownloadsEnabled(uid);
     return c.json({
-      results: await attachWatchedState(uid, search.results, (result) => result.videoId),
+      results: watched.map((result) => ({
+        ...result,
+        download_status: downloadStatus.get(result.videoId) ?? null,
+        downloads_allowed: downloadsAllowed,
+        downloads_enabled: downloadsEnabled,
+      })),
       channels: search.channels,
     });
   } catch (e) {

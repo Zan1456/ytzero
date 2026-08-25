@@ -14,6 +14,7 @@ import { tubeArchivistResource, tubeArchivistSubtitleList, tubeArchivistSubtitle
 import { registerAudioRoutes } from "./audioRoutes";
 import { registerYtdlpUpdateRoutes } from "./ytdlpUpdateRoutes";
 import { ytdlpUpdateChannel, ytdlpUpdateIntervalDays } from "../ytdlpUpdater";
+import { ensureOnDemandVideo, OnDemandVideoImportError } from "../onDemandVideoImport";
 
 type ApiEnvironment = { Variables: { userId: number; sessionAdmin?: boolean; profileAdmin?: boolean } };
 type Api = Hono<ApiEnvironment>;
@@ -198,6 +199,12 @@ api.post("/videos/:id/download", async (c) => {
   const uid = currentUserId(c);
   if (!await profileDownloadsEnabled(uid)) return c.json({ error: "downloads disabled" }, 409);
   const id = c.req.param("id");
+  try {
+    await ensureOnDemandVideo(id);
+  } catch (error) {
+    if (error instanceof OnDemandVideoImportError) return c.json({ error: error.message }, error.status);
+    throw error;
+  }
   const video = await database.prepare("SELECT live_status, is_private FROM videos WHERE video_id = ?").get(id) as { live_status: string; is_private: number } | null;
   if (!video) return c.json({ error: "not found" }, 404);
   if (video.is_private === 1) return c.json({ error: "private videos cannot be downloaded" }, 409);

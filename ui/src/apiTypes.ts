@@ -351,6 +351,7 @@ export interface SearchResult {
   title: string;
   thumbnail: string;
   duration: string;
+  channelId: string;
   channelTitle: string;
   channelAvatar: string | null;
   viewCount: number | null;
@@ -358,6 +359,10 @@ export interface SearchResult {
   watched: number;
   watch_position: number | null;
   watch_duration: number | null;
+  bucket: Bucket | null;
+  download_status: DownloadStatus | null;
+  downloads_enabled: boolean;
+  downloads_allowed: boolean;
 }
 
 export interface ChannelSearchResult {

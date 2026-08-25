@@ -94,6 +94,7 @@ function searchVideoFromLockup(vm: any): SearchResult | null {
     title: decodeHtmlEntities(title),
     thumbnail: bestSourceUrl(vm?.contentImage) || `https://i.ytimg.com/vi/${vm.contentId}/hqdefault.jpg`,
     duration: badges.find((text: string) => /^\d+(?::\d+)+$/.test(text)) ?? "",
+    channelId: String(channelPart?.text?.commandRuns?.[0]?.onTap?.innertubeCommand?.browseEndpoint?.browseId ?? ""),
     channelTitle: decodeHtmlEntities(channelPart?.text?.content ?? ""),
     channelAvatar: bestSourceUrl(metadata?.image) || null,
     viewCount: viewPart ? parseAbbreviatedCount(String(viewPart.text.content)) : null,
@@ -127,12 +128,14 @@ function collectSearchVideos(data: any): SearchResult[] {
     if (!r?.videoId || seen.has(r.videoId)) continue;
     seen.add(r.videoId);
     const viewStr = r?.viewCountText?.simpleText ?? r?.viewCountText?.runs?.[0]?.text ?? "";
+    const owner = r.ownerText ?? r.shortBylineText;
     out.push({
       videoId: r.videoId,
       title: decodeHtmlEntities(r.title?.runs?.[0]?.text ?? r.title?.simpleText ?? ""),
       thumbnail: r.thumbnail?.thumbnails?.at(-1)?.url ?? `https://i.ytimg.com/vi/${r.videoId}/hqdefault.jpg`,
       duration: r.lengthText?.simpleText ?? "",
-      channelTitle: decodeHtmlEntities(r.shortBylineText?.runs?.[0]?.text ?? ""),
+      channelId: String(owner?.runs?.find((part: any) => part?.navigationEndpoint?.browseEndpoint?.browseId)?.navigationEndpoint?.browseEndpoint?.browseId ?? ""),
+      channelTitle: decodeHtmlEntities(owner?.runs?.[0]?.text ?? ""),
       channelAvatar: r.channelThumbnailSupportedRenderers?.channelThumbnailWithLinkRenderer
         ?.thumbnail?.thumbnails?.at(-1)?.url ?? null,
       viewCount: viewStr ? parseAbbreviatedCount(viewStr) : null,
@@ -215,5 +218,5 @@ async function searchYouTube(query: string): Promise<{ results: SearchResult[]; 
   return result;
 }
 
-  return { searchChannelFromLockup, searchVideoFromLockup, searchYouTube };
+  return { collectSearchVideos, searchChannelFromLockup, searchVideoFromLockup, searchYouTube };
 }

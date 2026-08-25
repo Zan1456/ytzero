@@ -836,6 +836,7 @@ export interface SearchResult {
   title: string;
   thumbnail: string;
   duration: string;
+  channelId: string;
   channelTitle: string;
   channelAvatar: string | null;
   viewCount: number | null;
@@ -914,6 +915,7 @@ export function relativePublishedAt(published: PublishedAgo, now = new Date()): 
 }
 
 export const {
+  collectSearchVideos,
   searchChannelFromLockup,
   searchVideoFromLockup,
   searchYouTube,

@@ -31,12 +31,12 @@ export interface VideoRow {
 }
 export async function attachWatchedState<T>(uid: number, items: T[], videoId: (item: T) => string | null | undefined) {
   const ids = [...new Set(items.map(videoId).filter((id): id is string => !!id))];
-  if (ids.length === 0) return items.map((item) => ({ ...item, watched: 0, watch_position: null, watch_duration: null }));
+  if (ids.length === 0) return items.map((item) => ({ ...item, watched: 0, watch_position: null, watch_duration: null, bucket: null }));
   const placeholders = ids.map(() => "?").join(",");
   const rows = await database.prepare(
-    `SELECT video_id, watched, watch_position, watch_duration
+    `SELECT video_id, watched, watch_position, watch_duration, bucket
      FROM user_videos WHERE user_id = ? AND video_id IN (${placeholders})`
-  ).all(uid, ...ids) as { video_id: string; watched: number | null; watch_position: number | null; watch_duration: number | null }[];
+  ).all(uid, ...ids) as { video_id: string; watched: number | null; watch_position: number | null; watch_duration: number | null; bucket: string | null }[];
   const state = new Map(rows.map((row) => [row.video_id, row]));
   return items.map((item) => {
     const progress = state.get(videoId(item) ?? "");
@@ -45,6 +45,7 @@ export async function attachWatchedState<T>(uid: number, items: T[], videoId: (i
       watched: progress?.watched === 1 ? 1 : 0,
       watch_position: progress?.watch_position ?? null,
       watch_duration: progress?.watch_duration ?? null,
+      bucket: progress?.bucket ?? null,
     };
   });
 }

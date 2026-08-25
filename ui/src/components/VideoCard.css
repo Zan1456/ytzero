@@ -325,7 +325,7 @@
 .v-search-channel { display: flex; align-items: center; gap: 8px; margin-top: 9px; }
 .v-search-channel .card-avatar-link { margin: 0; }
 .v-search-channel .card-ch-avatar { width: 24px; height: 24px; }
-.v-search-channel .v-channel::after { display: none; }
+.video-card .v-search-channel .v-channel::after { display: none; }
 
 @media (max-width: 560px) {
   .video-card.video-card--search-result { flex-direction: column; gap: 0; }

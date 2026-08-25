@@ -3,13 +3,13 @@ import "./SearchPage.css";
 import { Link, useSearchParams } from "react-router-dom";
 import { Search } from "lucide-react";
 import { api, type Channel, type ChannelSearchResult, type SearchResult, type Video } from "../api";
-import { formatPublishedAgo, useI18n } from "../i18n";
+import { useI18n } from "../i18n";
 import { useDocumentTitle } from "../useDocumentTitle";
 import { img } from "../img";
 import VideoCard from "../components/VideoCard";
 import { VideoGridSkeleton } from "../components/LoadingState";
-import { VideoThumbnail, watchProgress } from "../components/VideoThumbnail";
 import { EmptyState, RevealList } from "../components/ui";
+import { searchResultVideo } from "../searchResultVideo";
 
 function normalizeSearchText(value: string) {
   return value
@@ -20,7 +20,7 @@ function normalizeSearchText(value: string) {
 }
 
 export default function SearchPage({ onPlay, hideExternalSearch = false }: { onPlay: (video: Video) => void; hideExternalSearch?: boolean }) {
-  const { t, locale, language } = useI18n();
+  const { t } = useI18n();
   const [params] = useSearchParams();
   const q = params.get("q")?.trim() ?? "";
   useDocumentTitle(q || t("searchTitle"));
@@ -165,18 +165,18 @@ export default function SearchPage({ onPlay, hideExternalSearch = false }: { onP
           )}
           <div className="search-results-header">{t("youtubeResults")}</div>
           {ytLoading ? <VideoGridSkeleton count={4} gridSize="sm" /> : ytResults.length === 0 ? null : (
-            <div className="yt-results-list">
+            <div className="search-local-video-list">
               {ytResults.map((result) => (
-                <Link key={result.videoId} className="yt-result-row" to={`/watch/${result.videoId}`} title={result.title}>
-                  <VideoThumbnail src={img(result.thumbnail)} watched={result.watched === 1} progress={watchProgress(result.watch_position, result.watch_duration)} variant="search" loading="lazy">
-                    {result.duration && <span className="yt-result-dur">{result.duration}</span>}
-                  </VideoThumbnail>
-                  <div className="yt-result-info">
-                    <div className="yt-result-title">{result.title}</div>
-                    {(result.viewCount != null || result.published) && <div className="yt-result-meta">{result.viewCount != null && `${result.viewCount.toLocaleString(locale)} ${t("views")}`}{result.viewCount != null && result.published && " · "}{result.published && formatPublishedAgo(result.published, language)}</div>}
-                    <div className="yt-result-channel">{result.channelAvatar && <img className="yt-result-avatar" src={img(result.channelAvatar)} alt="" loading="lazy" />}<span>{result.channelTitle}</span></div>
-                  </div>
-                </Link>
+                <VideoCard
+                  key={result.videoId}
+                  video={searchResultVideo(result)}
+                  onPlay={onPlay}
+                  onChanged={reloadLocalVideos}
+                  searchResultLayout
+                  allowReject={false}
+                  allowMarkWatched={false}
+                  processing={false}
+                />
               ))}
             </div>
           )}

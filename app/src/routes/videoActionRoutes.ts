@@ -8,6 +8,8 @@ import { cancelAutoDownloadIfUnwanted } from "../downloader";
 import { videoExistsStmt } from "../videoRoutesSupport";
 import { savePlaybackContext } from "./playbackRoutes";
 import { completeVideo } from "../videoCompletion";
+import { childLocalOnly } from "../childTime";
+import { ensureOnDemandVideo, OnDemandVideoImportError } from "../onDemandVideoImport";
 
 type ApiEnvironment = { Variables: { userId: number; sessionAdmin?: boolean; profileAdmin?: boolean } };
 type Api = Hono<ApiEnvironment>;
@@ -20,7 +22,15 @@ api.post("/videos/:id/queue", async (c) => {
   const id = c.req.param("id");
   const { bucket } = await c.req.json();
   if (!BUCKETS.includes(bucket)) return c.json({ error: "invalid bucket" }, 400);
-  if (!await videoExistsStmt.get(id)) return c.json({ error: "not found" }, 404);
+  if (!await videoExistsStmt.get(id)) {
+    if (childLocalOnly(uid)) return c.json({ error: "restricted" }, 403);
+    try {
+      await ensureOnDemandVideo(id);
+    } catch (error) {
+      if (error instanceof OnDemandVideoImportError) return c.json({ error: error.message }, error.status);
+      throw error;
+    }
+  }
   const showFrom = computeShowFrom(bucket);
   await database.prepare(
     `INSERT INTO user_videos (user_id, video_id, status, bucket, queued_at, show_from)
