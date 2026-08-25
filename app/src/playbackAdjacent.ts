@@ -7,6 +7,7 @@ import { sortFetchedPlaylistVideos } from "./playlistVideoOrder";
 import { recommendationQueueVideoIds } from "./plugins";
 import { fetchPlaylistVideos } from "./youtube";
 import { sortUserPlaylistRows, type UserPlaylistSortable } from "./userPlaylistSort";
+import { localeForLanguage } from "./uiLanguage";
 
 export type PlaybackDirection = "oldest" | "newest";
 
@@ -117,9 +118,7 @@ async function orderedVideoIds(userId: number, context: Exclude<PlaybackContext,
   }
   const due = context.dueOnly ? "AND (uv.show_from IS NULL OR uv.show_from <= datetime('now'))" : "";
   const rows = await database.prepare(`SELECT v.video_id,uv.bucket,uv.show_from,uv.queued_at,v.duration,v.title,COALESCE(c.custom_title,c.title) channel_title FROM user_videos uv JOIN videos v ON v.video_id=uv.video_id JOIN channels c ON c.channel_id=v.channel_id WHERE uv.user_id=? AND uv.status='queued' AND ${shortsUiVisibilitySql(userId)} ${due} ORDER BY uv.queued_at DESC,v.video_id DESC`).all(userId) as WatchlistRow[];
-  const language = getUserSetting(userId, "language") ?? "en";
-  const locale = ({ pl: "pl-PL", de: "de-DE", en: "en-US" } as Record<string, string>)[language];
-  return watchlistOrder(rows, context.sort, locale);
+  return watchlistOrder(rows, context.sort, localeForLanguage(getUserSetting(userId, "language")));
 }
 
 export async function resolveAdjacentPlaybackVideoId(userId: number, currentVideoId: string, context: PlaybackContext, direction: PlaybackDirection, relative: "next" | "previous" = "next"): Promise<string | null> {

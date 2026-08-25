@@ -6,17 +6,23 @@ import type { I18nKey, Language, Locale } from "./types";
 import { DEFAULT_TIME_ZONE, normalizeTimeZone, parseAppTimestamp } from "../dateTime";
 import { subscribe } from "../events";
 import { localeFormats } from "./localeFormats";
+import { LANGUAGE_CODES, LOCALE_TAGS, normalizeLanguage as normalizeLanguageCode, UI_LANGUAGES } from "../../../shared/uiLanguages";
 
 export type { Language, I18nKey, Bucket } from "./types";
 
 const LANGUAGE_KEY = "language";
 
-const supportedLanguages: readonly Language[] = ["en", "pl", "de"];
+const supportedLanguages: readonly Language[] = LANGUAGE_CODES;
 const loadedLocales: Partial<Record<Language, Locale>> = { en };
 const pendingLocales: Partial<Record<Language, Promise<Locale>>> = {};
-const localeLoaders: Record<Exclude<Language, "en">, () => Promise<Locale>> = {
+export const localeLoaders: Record<Exclude<Language, "en">, () => Promise<Locale>> = {
   pl: () => import("./locales/pl").then((module) => module.pl),
   de: () => import("./locales/de").then((module) => module.de),
+  fr: () => import("./locales/fr").then((module) => module.fr),
+  es: () => import("./locales/es").then((module) => module.es),
+  "pt-BR": () => import("./locales/pt-BR").then((module) => module.ptBR),
+  ru: () => import("./locales/ru").then((module) => module.ru),
+  ja: () => import("./locales/ja").then((module) => module.ja),
 };
 
 function localeFor(language: Language): Locale {
@@ -42,24 +48,20 @@ async function loadLocale(language: Language): Promise<Locale> {
 }
 
 /** BCP 47 tags used for Intl date/number formatting. Single source of truth. */
-export const LOCALE_TAGS: Record<Language, string> = {
-  en: "en-US",
-  pl: "pl-PL",
-  de: "de-DE",
-};
+export { LOCALE_TAGS } from "../../../shared/uiLanguages";
 
 export type SettingsWithLanguage = AppSettings & { language: Language };
 
 /** Native (endonym) name of a language, e.g. "Deutsch", "polski" — for the language picker. */
 export function languageName(code: Language): string {
-  return new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code;
+  return UI_LANGUAGES[code].nativeName;
 }
 
 /** All available UI languages, sorted by their native name. Drives the language picker. */
 export const LANGUAGES = [...supportedLanguages].sort((a, b) => languageName(a).localeCompare(languageName(b)));
 
 export function normalizeLanguage(value: unknown): Language {
-  return typeof value === "string" && supportedLanguages.includes(value as Language) ? (value as Language) : "en";
+  return normalizeLanguageCode(value);
 }
 
 type TParams = Record<string, string | number>;

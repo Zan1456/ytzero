@@ -33,7 +33,7 @@ export const pl: Locale = {
     bookmarksUntagged: "Kanały bez tagu",
     bookmarksCount: "Zakładki: {count}",
     bookmarksEmpty: "Nie masz jeszcze zakładek",
-    bookmarksEmptyHint: "Otwórz film i użyj przycisku Zakładka pod odtwarzaczem, aby zapisać czas oraz krótką notatkę.",
+    bookmarksEmptyHint: "Otwórz film i użyj menu Więcej, aby zapisać czas oraz krótką notatkę.",
     bookmarksLoadError: "Nie udało się wczytać zakładek.",
     bookmarkAction: "Zakładka",
     bookmarkAddTitle: "Zapisz ten moment",

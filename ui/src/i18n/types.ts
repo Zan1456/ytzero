@@ -1,7 +1,8 @@
 import type { Bucket } from "../api";
 import { en } from "./locales/en";
+import type { Language } from "../../../shared/uiLanguages";
 
-export type Language = "en" | "pl" | "de";
+export type { Language } from "../../../shared/uiLanguages";
 
 export type I18nKey = keyof typeof en.messages;
 

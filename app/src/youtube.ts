@@ -6,19 +6,11 @@ import { createYoutubeSearch, parseAbbreviatedCount } from "./youtubeSearch";
 import { isYouTubeRateLimitError, isYouTubeRefusalError, readYouTubeResponse, youtubeRefusalGate } from "./youtubeRateLimit";
 import { DeletedVideoError, fetchVideoOEmbedAvailability, isDeletedVideoError, isPrivateVideoError, PrivateVideoError } from "./youtubeVideoAvailability";
 import { inferIsShortFromMetadata } from "./shortClassification";
+import { localeForLanguage } from "./uiLanguage";
 export { DeletedVideoError, fetchVideoOEmbedAvailability, isDeletedVideoError, isPrivateVideoError, PrivateVideoError, videoOEmbedAvailabilityFromStatus } from "./youtubeVideoAvailability";
 const _require = createRequire(import.meta.url);
 const InnerTubeClient = _require("innertube.js");
 const _yt = new InnerTubeClient();
-
-// Language code → BCP-47 locale used in Accept-Language.
-// Kept in sync with the equivalent map in playbackAdjacent.ts.
-const YT_LOCALE_MAP: Record<string, string> = {
-  en: "en-US",
-  pl: "pl-PL",
-  de: "de-DE",
-  fr: "fr-FR",
-};
 
 function resolveAcceptLanguage(): string {
   // Priority: (1) env override, (2) primary-user language setting, (3) en-US fallback.
@@ -31,8 +23,7 @@ function resolveAcceptLanguage(): string {
   try {
     const row = db.prepare("SELECT id FROM users ORDER BY id ASC LIMIT 1").get() as { id: number } | null;
     if (!row) return "en-US,en;q=0.9";
-    const lang = getUserSetting(row.id, "language") ?? "en";
-    const locale = YT_LOCALE_MAP[lang] ?? "en-US";
+    const locale = localeForLanguage(getUserSetting(row.id, "language"));
     const tag = locale.split("-")[0];
     return `${locale},${tag};q=0.9`;
   } catch {

@@ -27,8 +27,8 @@ describe("cross-database schema migrations", () => {
     await database.exec("CREATE TABLE videos (video_id TEXT PRIMARY KEY)");
     await database.exec("INSERT INTO user_playlist_videos VALUES (1, 'later', '2026-01-02'), (1, 'earlier', '2026-01-01')");
 
-    expect(await applyDatabaseMigrations(database)).toBe(8);
-    expect(await applyDatabaseMigrations(database)).toBe(8);
+    expect(await applyDatabaseMigrations(database)).toBe(100);
+    expect(await applyDatabaseMigrations(database)).toBe(100);
 
     const columns = await database.prepare('PRAGMA table_info("user_channels")').all<{ name: string }>();
     expect(columns.some((column) => column.name === "shorts_feed_visibility")).toBe(true);

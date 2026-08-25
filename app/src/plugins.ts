@@ -26,13 +26,13 @@ import {
   SOCIAL_SETTINGS,
   TUBE_ARCHIVIST_SETTINGS,
   type LocalizedText,
-  type PluginLanguage,
   type PluginManifest,
   type PluginSettingDef,
   type PluginSettingSource,
   type PluginSettingValue,
   type PluginTermState,
 } from "./pluginCatalog";
+import { normalizeLanguage } from "../../shared/uiLanguages";
 export { PLUGINS } from "./pluginCatalog";
 export type { PluginManifest, PluginSettingDef, PluginSettingOption, PluginSettingType, PluginSettingValue, PluginTermState } from "./pluginCatalog";
 
@@ -49,12 +49,8 @@ if (getSetting("plugin_social_enabled_reactions") != null) {
   await reloadSettingCache();
 }
 
-function normalizePluginLanguage(language: string | null | undefined): PluginLanguage {
-  return language === "pl" || language === "de" || language === "en" ? language : "en";
-}
-
 function text(value: LocalizedText, language: string | null | undefined) {
-  return value[normalizePluginLanguage(language)] ?? value.en;
+  return value[normalizeLanguage(language)] ?? value.en;
 }
 
 function localizeSetting(def: PluginSettingSource, language: string | null | undefined): PluginSettingDef {

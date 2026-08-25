@@ -6,6 +6,7 @@ import {
   Archive,
   AlertTriangle,
   ArrowDownToLine,
+  Bookmark,
   BookmarkPlus,
   CalendarDays,
   Check,
@@ -524,7 +525,6 @@ export default function WatchPage() {
               <span className="btn-label">{t("like")}</span>
             </Button>
             <WatchPlayerModeToggle placement="actions" active={audioActive} available={audioModeAvailable} audioLabel={t("playerAudioMode")} videoLabel={t("playerAudioModeExit")} onToggle={(active) => { capturePlaybackPosition(); setAudioMode(active); }} />
-            <BookmarkEditor videoId={video.video_id} currentPlaybackSeconds={currentPlaybackSeconds} />
             <div className="watch-action-group watch-action-group--playback">
             <IconButton
               className="watch-action-desktop watch-action-medium"
@@ -676,6 +676,11 @@ export default function WatchPage() {
                         <button className="more-item-always" onClick={() => { setTranscriptOpen(true); setMoreOpen(false); }}>
                           <Captions /> {t("transcript")}
                         </button>
+                        <BookmarkEditor
+                          videoId={video.video_id}
+                          currentPlaybackSeconds={currentPlaybackSeconds}
+                          trigger={<button className="more-item-always"><Bookmark /> {t("bookmarkAction")}</button>}
+                        />
                       </div>
                       {downloadsEnabled && !isChildProfile && video.is_private !== 1 && video.live_status !== "live" && video.live_status !== "upcoming" && downloadStatus !== "done" && downloadStatus !== "queued" && downloadStatus !== "downloading" && (
                         <div className="more-menu-section">

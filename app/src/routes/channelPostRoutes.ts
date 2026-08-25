@@ -4,6 +4,7 @@ import { database } from "../database";
 import { getUserSetting } from "../db";
 import { videoSelect, type VideoRow } from "../videoRoutesSupport";
 import type { ChannelPost } from "../youtubePosts";
+import { normalizeLanguage } from "../uiLanguage";
 
 type ApiEnvironment = { Variables: { userId: number } };
 type AttachTags = (userId: number, videos: VideoRow[]) => Promise<Array<VideoRow & Record<string, unknown>>>;
@@ -30,8 +31,7 @@ export function registerChannelPostRoutes(
     const userId = currentUserId(c);
     if (getUserSetting(userId, "channel_posts_tab") !== "1") return c.json({ error: "posts tab disabled" }, 403);
     if (!await database.prepare("SELECT 1 FROM channels WHERE channel_id = ?").get(channelId)) return c.json({ error: "not found" }, 404);
-    const requestedLanguage = c.req.query("language");
-    const language = requestedLanguage === "pl" || requestedLanguage === "de" ? requestedLanguage : "en";
+    const language = normalizeLanguage(c.req.query("language"));
     const stored = await storedChannelPosts(channelId);
     const result = c.req.query("refresh") === "1" || !stored.fetchedAt
       ? await syncChannelPosts(channelId, language)

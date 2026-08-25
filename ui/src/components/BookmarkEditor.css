@@ -1,5 +1,12 @@
 .bookmark-editor__popover { width: min(380px, calc(100vw - 28px)); }
 .bookmark-editor__title { color: var(--text-2); font-size: 11px; font-weight: 700; letter-spacing: .04em; margin-bottom: 9px; text-transform: uppercase; }
+.bookmark-editor__list { display: grid; gap: 2px; margin-bottom: 10px; max-height: 140px; overflow: auto; }
+.bookmark-editor__item { align-items: center; border-radius: 6px; display: flex; font-size: 14px; gap: 8px; justify-content: space-between; min-height: 30px; padding: 2px 2px 2px 4px; }
+.bookmark-editor__item:hover { background: var(--surface-2); }
+.bookmark-editor__item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-editor__item strong { color: var(--accent); font-variant-numeric: tabular-nums; }
+.bookmark-editor__separator { color: var(--text-2); margin: 0 7px; }
+.bookmark-editor__item .ui-icon-button { flex: 0 0 auto; height: 28px; width: 28px; }
 .bookmark-editor__form { display: grid; gap: 14px; }
 .bookmark-editor__loading { align-items: center; color: var(--text-2); display: flex; gap: 8px; min-height: 90px; }
 .bookmark-editor .ui-button[aria-pressed="true"] { color: var(--accent); }

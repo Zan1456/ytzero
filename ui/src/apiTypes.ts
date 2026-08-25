@@ -269,7 +269,7 @@ export interface UserPlaylistRule {
 }
 
 export interface AppSettings {
-  language: "en" | "pl" | "de";
+  language: import("../../shared/uiLanguages").Language;
   show_shorts: ShortsFeedMode;
   player_hl: string;
   player_cc: string;

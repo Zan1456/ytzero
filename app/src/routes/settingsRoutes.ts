@@ -7,6 +7,7 @@ import { isProfilePermissionArea, serializeAdminOnlyAreas, type ProfilePermissio
 import { computeShowFrom, SCHEDULE_BUCKETS } from "../scheduleTime";
 import { configuredTimeZone, isValidTimeZone, timeZoneIsEnvironmentLocked } from "../timeZone";
 import { normalizeKeyboardShortcutSetting } from "../keyboardShortcutSettings";
+import { isLanguage } from "../../../shared/uiLanguages";
 
 type ApiEnvironment = { Variables: { userId: number; sessionAdmin?: boolean; profileAdmin?: boolean } };
 type Api = Hono<ApiEnvironment>; type ApiContext = Context<ApiEnvironment>;
@@ -127,6 +128,7 @@ api.put("/settings", async (c) => {
   const uid = currentUserId(c);
   const primary = isAdmin(c);
   const body = await c.req.json();
+  if ("language" in body && !isLanguage(body.language)) return c.json({ error: "unsupported interface language" }, 400);
   if ("timezone" in body && timeZoneIsEnvironmentLocked()) return c.json({ error: "timezone is controlled by the TZ environment variable" }, 409);
   if ("timezone" in body && !isValidTimeZone(body.timezone)) return c.json({ error: "invalid timezone" }, 400);
   const videoCardSettingsError = validateVideoCardSettings(body); if (videoCardSettingsError) return c.json({ error: videoCardSettingsError }, 400);

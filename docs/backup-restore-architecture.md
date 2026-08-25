@@ -190,6 +190,11 @@ below.
   The administrator-only profile permission areas are portable configuration.
   Enabling Child Lock and its PIN remain local and are never exported.
 - `user_settings`: registered settings for selected profiles.
+  The interface language is portable per-profile presentation configuration. It
+  is a bounded code from the application language catalogue; restore accepts
+  older archives and normalizes an unknown code to English. The expanded
+  catalogue is recorded by `profile.settings` schema v7, while schemas 1–6
+  remain readable.
   This includes `feed_sort`, the portable per-profile choice between publication and first-seen chronology, `watch_show_comments`, the opt-in presentation preference for the on-demand comments section, and `channel_posts_tab`, the opt-in presentation preference for Community Posts on channel pages. Comment payloads remain transient; the persisted Community Post catalog and its synchronization state are rebuildable cache data. Neither is exported.
   The visibility of the child-watching shortcut is also a portable per-profile
   presentation preference. It defaults to visible; live child activity remains

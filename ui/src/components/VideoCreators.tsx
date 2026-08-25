@@ -6,14 +6,13 @@ import { useI18n } from "../i18n";
 import { FloatingPopover } from "./ui";
 import "./VideoCreators.css";
 
-function separator(index: number, length: number, language: "en" | "pl" | "de") {
-  if (index === 0) return "";
-  if (index < length - 1) return ", ";
-  return language === "pl" ? " i " : language === "de" ? " und " : " and ";
+function creatorListParts(length: number, locale: string) {
+  const tokens = Array.from({ length }, (_, index) => `\u0000${index}\u0000`);
+  return new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).formatToParts(tokens);
 }
 
 export default function VideoCreators({ creators }: { creators: VideoCreator[] }) {
-  const { t, language } = useI18n();
+  const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   if (creators.length === 0) return null;
 
@@ -36,12 +35,12 @@ export default function VideoCreators({ creators }: { creators: VideoCreator[] }
     </span>
     <span className="video-creators-copy">
       <span className="video-creators-names">
-        {creators.map((creator, index) => (
-          <span key={creator.channelId}>
-            {separator(index, creators.length, language)}
-            <span className="name channel-link">{creator.title}</span>
-          </span>
-        ))}
+        {creatorListParts(creators.length, locale).map((part, index) => {
+          const match = part.type === "element" ? /^\u0000(\d+)\u0000$/.exec(part.value) : null;
+          return match
+            ? <span key={creators[Number(match[1])].channelId} className="name channel-link">{creators[Number(match[1])].title}</span>
+            : <span key={`literal-${index}`}>{part.value}</span>;
+        })}
       </span>
       {multiple ? (
         <span className="sub">{t("videoCollaborators")}</span>

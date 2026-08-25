@@ -43,4 +43,48 @@ export const localeFormats: Record<Language, LocaleFormat> = {
       years: { one: "Jahr", other: "Jahre" },
     }[unit]),
   },
+  fr: {
+    videoCount: (n) => `${n} ${plural("fr", n, { one: "vidéo", other: "vidéos" })}`,
+    addedVideos: (n) => `${n} nouvelle${n > 1 ? "s" : ""} ${plural("fr", n, { one: "vidéo ajoutée", other: "vidéos ajoutées" })}`,
+    channelCount: (n) => `${n} ${plural("fr", n, { one: "chaîne", other: "chaînes" })}`,
+    playlistCount: (n) => `${n} ${plural("fr", n, { one: "playlist", other: "playlists" })}`,
+    historyEntryCount: (n) => `${n} ${plural("fr", n, { one: "entrée", other: "entrées" })}`,
+    ageUnit: (n, unit) => plural("fr", n, {
+      days: { one: "jour", other: "jours" }, weeks: { one: "semaine", other: "semaines" }, months: { one: "mois", other: "mois" }, years: { one: "an", other: "ans" },
+    }[unit]),
+  },
+  es: {
+    videoCount: (n) => `${n} ${plural("es", n, { one: "vídeo", other: "vídeos" })}`,
+    addedVideos: (n) => `${n} ${plural("es", n, { one: "vídeo nuevo añadido", other: "vídeos nuevos añadidos" })}`,
+    channelCount: (n) => `${n} ${plural("es", n, { one: "canal", other: "canales" })}`,
+    playlistCount: (n) => `${n} ${plural("es", n, { one: "lista de reproducción", other: "listas de reproducción" })}`,
+    historyEntryCount: (n) => `${n} ${plural("es", n, { one: "entrada", other: "entradas" })}`,
+    ageUnit: (n, unit) => plural("es", n, {
+      days: { one: "día", other: "días" }, weeks: { one: "semana", other: "semanas" }, months: { one: "mes", other: "meses" }, years: { one: "año", other: "años" },
+    }[unit]),
+  },
+  "pt-BR": {
+    videoCount: (n) => `${n} ${plural("pt-BR", n, { one: "vídeo", other: "vídeos" })}`,
+    addedVideos: (n) => `${n} ${plural("pt-BR", n, { one: "novo vídeo adicionado", other: "novos vídeos adicionados" })}`,
+    channelCount: (n) => `${n} ${plural("pt-BR", n, { one: "canal", other: "canais" })}`,
+    playlistCount: (n) => `${n} ${plural("pt-BR", n, { one: "playlist", other: "playlists" })}`,
+    historyEntryCount: (n) => `${n} ${plural("pt-BR", n, { one: "entrada", other: "entradas" })}`,
+    ageUnit: (n, unit) => plural("pt-BR", n, {
+      days: { one: "dia", other: "dias" }, weeks: { one: "semana", other: "semanas" }, months: { one: "mês", other: "meses" }, years: { one: "ano", other: "anos" },
+    }[unit]),
+  },
+  ru: {
+    videoCount: (n) => `${n} ${plural("ru", n, { one: "видео", few: "видео", many: "видео", other: "видео" })}`,
+    addedVideos: (n) => `Добавлено ${n} ${plural("ru", n, { one: "новое видео", few: "новых видео", many: "новых видео", other: "нового видео" })}`,
+    channelCount: (n) => `${n} ${plural("ru", n, { one: "канал", few: "канала", many: "каналов", other: "канала" })}`,
+    playlistCount: (n) => `${n} ${plural("ru", n, { one: "плейлист", few: "плейлиста", many: "плейлистов", other: "плейлиста" })}`,
+    historyEntryCount: (n) => `${n} ${plural("ru", n, { one: "запись", few: "записи", many: "записей", other: "записи" })}`,
+    ageUnit: (n, unit) => plural("ru", n, {
+      days: { one: "день", few: "дня", many: "дней", other: "дня" }, weeks: { one: "неделя", few: "недели", many: "недель", other: "недели" }, months: { one: "месяц", few: "месяца", many: "месяцев", other: "месяца" }, years: { one: "год", few: "года", many: "лет", other: "года" },
+    }[unit]),
+  },
+  ja: {
+    videoCount: (n) => `${n} 本の動画`, addedVideos: (n) => `${n} 本の新しい動画を追加しました`, channelCount: (n) => `${n} チャンネル`, playlistCount: (n) => `${n} プレイリスト`, historyEntryCount: (n) => `${n} 件の履歴`,
+    ageUnit: (_n, unit) => ({ days: "日", weeks: "週間", months: "か月", years: "年" })[unit],
+  },
 };

@@ -33,7 +33,7 @@ export const en = {
     bookmarksUntagged: "Channels without a tag",
     bookmarksCount: "Bookmarks: {count}",
     bookmarksEmpty: "No bookmarks yet",
-    bookmarksEmptyHint: "Open a video and use Bookmark below the player to save a timestamp and a short note.",
+    bookmarksEmptyHint: "Open a video and use the more actions menu to save a timestamp and a short note.",
     bookmarksLoadError: "Bookmarks could not be loaded.",
     bookmarkAction: "Bookmark",
     bookmarkAddTitle: "Save this moment",

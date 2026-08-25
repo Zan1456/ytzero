@@ -25,7 +25,7 @@ beforeAll(async () => {
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 describe("bookmark routes", () => {
-  test("creates and updates one bookmark per profile and video", () => {
+  test("creates multiple bookmarks per profile and video", () => {
     expect(result.firstStatus).toBe(200);
     expect(result.updateStatus).toBe(200);
     expect(result.stableId).toBe(true);
@@ -35,7 +35,7 @@ describe("bookmark routes", () => {
 
   test("lists enriched bookmark context including inherited channel tags", () => {
     expect(result.listStatus).toBe(200);
-    expect(result.listCount).toBe(1);
+    expect(result.listCount).toBe(2);
     expect(result.listDescription).toBe("Updated note");
     expect(result.channelTagSource).toBe("channel");
   });

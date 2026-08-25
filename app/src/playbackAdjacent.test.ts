@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { adjacentFromOrder, adjacentFromPlaybackOrder, nextFromOrder, watchlistOrder } from "./playbackAdjacent";
+import { LOCALE_TAGS } from "../../shared/uiLanguages";
 
 describe("playback context adjacency", () => {
   test("walks the current source order in either configured direction", () => {
@@ -32,5 +33,15 @@ describe("playback context adjacency", () => {
     ];
     expect(watchlistOrder(rows, "schedule")).toEqual(["today", "tonight", "weekend"]);
     expect(watchlistOrder(rows, "duration-desc")).toEqual(["tonight", "today", "weekend"]);
+  });
+
+  test("accepts all shared locale tags for localized title ordering", () => {
+    const rows = [
+      { video_id: "1", bucket: "today", show_from: null, duration: null, title: "Żaba", channel_title: "Żaba" },
+      { video_id: "2", bucket: "today", show_from: null, duration: null, title: "Ala", channel_title: "Ala" },
+    ];
+    for (const locale of Object.values(LOCALE_TAGS)) {
+      expect(watchlistOrder(rows, "title-asc", locale).length).toBe(2);
+    }
   });
 });

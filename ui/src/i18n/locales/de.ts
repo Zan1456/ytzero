@@ -33,7 +33,7 @@ export const de: Locale = {
     bookmarksUntagged: "Kanäle ohne Tag",
     bookmarksCount: "Lesezeichen: {count}",
     bookmarksEmpty: "Noch keine Lesezeichen",
-    bookmarksEmptyHint: "Öffne ein Video und speichere über Lesezeichen unter dem Player einen Zeitpunkt und eine kurze Notiz.",
+    bookmarksEmptyHint: "Öffne ein Video und speichere über das Menü Weitere Aktionen einen Zeitpunkt und eine kurze Notiz.",
     bookmarksLoadError: "Lesezeichen konnten nicht geladen werden.",
     bookmarkAction: "Lesezeichen",
     bookmarkAddTitle: "Diesen Moment speichern",

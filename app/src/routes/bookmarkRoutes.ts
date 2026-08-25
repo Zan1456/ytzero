@@ -32,11 +32,11 @@ export function registerBookmarkRoutes(
   });
 
   api.get("/videos/:id/bookmark", async (c) => {
-    const row = await database.prepare(`
+    const rows = await database.prepare(`
       SELECT portable_uuid AS id, video_id, position_seconds, description, created_at, updated_at
-      FROM bookmarks WHERE user_id = ? AND video_id = ?
-    `).get(currentUserId(c), c.req.param("id"));
-    return c.json({ bookmark: row ?? null });
+      FROM bookmarks WHERE user_id = ? AND video_id = ? ORDER BY position_seconds, id
+    `).all(currentUserId(c), c.req.param("id"));
+    return c.json({ bookmarks: rows, bookmark: rows[rows.length - 1] ?? null });
   });
 
   api.put("/videos/:id/bookmark", async (c) => {
@@ -58,13 +58,15 @@ export function registerBookmarkRoutes(
     const bookmark = await database.prepare(`
       INSERT INTO bookmarks(portable_uuid, user_id, video_id, position_seconds, description)
       VALUES(?, ?, ?, ?, ?)
-      ON CONFLICT(user_id, video_id) DO UPDATE SET
-        position_seconds = excluded.position_seconds,
-        description = excluded.description,
-        updated_at = datetime('now')
       RETURNING portable_uuid AS id, video_id, position_seconds, description, created_at, updated_at
     `).get(crypto.randomUUID(), uid, videoId, Math.round(position * 10) / 10, description);
     return c.json({ bookmark });
+  });
+
+  api.delete("/videos/:id/bookmark/:bookmarkId", async (c) => {
+    await database.prepare("DELETE FROM bookmarks WHERE user_id = ? AND video_id = ? AND portable_uuid = ?")
+      .run(currentUserId(c), c.req.param("id"), c.req.param("bookmarkId"));
+    return c.json({ ok: true });
   });
 
   api.delete("/videos/:id/bookmark", async (c) => {

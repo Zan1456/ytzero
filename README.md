@@ -86,7 +86,8 @@ YT Zero removes that layer. It keeps subscriptions, watch progress, playlists, t
 - **Comments and list continuation** — optionally load comments on demand and continue through whichever list opened the player, automatically or after confirmation.
 - **Playback and display controls** — theater view, captions, quality, display customization, and optional auto-fullscreen when a phone rotates to landscape.
 - **Audio mode** — switch regular videos and active livestreams to an audio-only player with Media Session controls, background playback, seeking, volume control, and per-profile browser persistence. It uses yt-dlp directly and does not require downloads to be enabled.
-- **Internationalization** — English, Polish, and German UI.
+- **Internationalization** — English, Polish, German, French, Spanish,
+  Brazilian Portuguese, Russian, and Japanese UI.
 
 See the full list with screens in the **[Features](https://github.com/Pelski/ytzero/wiki/Features)** wiki page.
 

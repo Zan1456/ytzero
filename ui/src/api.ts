@@ -91,6 +91,7 @@ import {
   type YtdlpConfig,
   type YtdlpUpdateResult,
 } from "./apiTypes";
+import type { Language } from "../../shared/uiLanguages";
 import type { ChannelPost } from "./channelPostTypes";
 export * from "./apiTypes";
 export * from "./pluginTypes";
@@ -272,10 +273,11 @@ export const api = {
   archive: (page = 0) => http<{ videos: Video[] }>(`/archive?page=${page}`),
   history: (page = 0) => http<{ videos: Video[]; page: number; has_more: boolean }>(`/history?page=${page}`),
   bookmarks: () => http<{ bookmarks: BookmarkVideo[] }>("/bookmarks"),
-  videoBookmark: (id: string) => http<{ bookmark: Bookmark | null }>(`/videos/${id}/bookmark`),
+  videoBookmark: (id: string) => http<{ bookmarks: Bookmark[]; bookmark: Bookmark | null }>(`/videos/${id}/bookmark`),
   saveVideoBookmark: (id: string, input: { position_seconds: number; description: string }) =>
     http<{ bookmark: Bookmark }>(`/videos/${id}/bookmark`, { method: "PUT", body: JSON.stringify(input) }),
   removeVideoBookmark: (id: string) => http<{ ok: true }>(`/videos/${id}/bookmark`, { method: "DELETE" }),
+  removeBookmark: (videoId: string, bookmarkId: string) => http<{ ok: true }>(`/videos/${videoId}/bookmark/${encodeURIComponent(bookmarkId)}`, { method: "DELETE" }),
   removeFromHistory: (historyId: number) => http<{ ok: true }>(`/history/${historyId}`, { method: "DELETE" }),
   insights: (days = 30, profileId: number | null = null) => {
     const qs = new URLSearchParams({ days: String(days), profile: profileId == null ? "all" : String(profileId) });
@@ -407,7 +409,7 @@ export const api = {
 
   channelAbout: (id: string) => http<ChannelAbout>(`/channels/${id}/about`),
   channelPlaylists: (id: string) => http<{ playlists: PlaylistInfo[] }>(`/channels/${id}/playlists`),
-  channelPosts: (id: string, language: "en" | "pl" | "de", refresh = false) => http<{ posts: ChannelPost[]; fetchedAt: string; cached: boolean }>(`/channels/${id}/posts?language=${language}${refresh ? "&refresh=1" : ""}`),
+  channelPosts: (id: string, language: Language, refresh = false) => http<{ posts: ChannelPost[]; fetchedAt: string; cached: boolean }>(`/channels/${id}/posts?language=${language}${refresh ? "&refresh=1" : ""}`),
   syncChannelPlaylists: (id: string) => http<{ playlists: PlaylistInfo[]; count: number; synced: number; added: number; errors: number }>(`/channels/${id}/playlists/sync`, { method: "POST" }),
   syncChannelMetadata: (id: string) => http<{ checked: number; updated: number; dates: number; durations: number; shorts: number; failed: number; remaining: number }>(`/channels/${id}/metadata/sync`, { method: "POST" }),
   channelPlaylist: (id: string) => http<{ playlist: FollowedPlaylist }>(`/channel-playlists/${id}`),

@@ -12,6 +12,7 @@ WORKDIR /ui
 COPY ui/package.json ui/bun.lock* ./
 RUN bun install
 COPY ui/ .
+COPY shared/ /shared/
 RUN if [ "${YTZERO_CHANGELOG_PREGENERATED}" = "1" ]; then bun run build:prepared; else bun run build; fi
 
 # ---- runtime ----
@@ -39,6 +40,7 @@ COPY app/package.json app/bun.lock* ./
 RUN bun install --production
 COPY app/src ./src
 COPY app/scripts ./scripts
+COPY shared/ /shared/
 RUN chmod 0755 ./scripts/provision-ytdlp.sh
 COPY --from=ui-build /ui/dist ./public
 
