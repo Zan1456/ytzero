@@ -331,6 +331,13 @@ export default function WatchPage() {
                 />
               ) : playerKind === "youtube" ? (
                 <div ref={ytWrapRef} className="watch-player-yt" />
+              ) : playerKind === "loading" ? (
+                <div className="wp-panel" style={video ? { backgroundImage: `url(${img(video.thumbnail)})` } : undefined}>
+                  <div className="wp-panel-scrim" />
+                  <div className="wp-panel-content" aria-busy="true">
+                    <LoaderCircle className="spin" size={30} />
+                  </div>
+                </div>
               ) : video && (
                 <div className="wp-panel" style={{ backgroundImage: `url(${img(video.thumbnail)})` }}>
                   <div className="wp-panel-scrim" />
@@ -344,11 +351,6 @@ export default function WatchPage() {
                           {downloadStatus === "queued" ? t("downloadQueued") : t("downloading")}
                         </p>
                       )}
-                    </div>
-                  )}
-                  {playerKind === "loading" && (
-                    <div className="wp-panel-content" aria-busy="true">
-                      <LoaderCircle className="spin" size={30} />
                     </div>
                   )}
                   {playerKind === "choice" && (

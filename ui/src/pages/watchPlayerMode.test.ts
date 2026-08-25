@@ -49,8 +49,15 @@ describe("resolvePlayerKind", () => {
       expect(resolvePlayerKind({ ...base, streamingEnabled: true })).toBe("stream");
     });
 
-    test("does not let a stale library row own the streaming player", () => {
-      expect(resolvePlayerKind({ ...base, hasVideo: false, streamingEnabled: true })).toBe("youtube");
+    test("shows loading while the streamable video's library row is being imported", () => {
+      expect(resolvePlayerKind({ ...base, hasVideo: false, streamingEnabled: true })).toBe("loading");
+    });
+
+    test("keeps YouTube for a missing video when streaming cannot take over", () => {
+      expect(resolvePlayerKind({ ...base, hasVideo: false })).toBe("youtube");
+      expect(resolvePlayerKind({ ...base, hasVideo: false, streamingEnabled: true, playerSource: "youtube" })).toBe("youtube");
+      expect(resolvePlayerKind({ ...base, hasVideo: false, streamingEnabled: true, sourceChoice: "remote" })).toBe("youtube");
+      expect(resolvePlayerKind({ ...base, hasVideo: false, streamingEnabled: true, defaultPlayer: "direct" })).toBe("youtube");
     });
 
     test("prefers streaming over the wait/ask panels", () => {

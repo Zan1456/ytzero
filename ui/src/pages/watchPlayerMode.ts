@@ -33,7 +33,8 @@ export function resolvePlayerKind(input: {
 }): PlayerKind {
   const remoteForcedToYouTube = input.playerSource === "youtube";
   const wantsRemote = input.sourceChoice === "remote" || input.watchMode === "youtube";
-  const canStream = input.hasVideo && input.streamingEnabled && input.defaultPlayer !== "direct" && !input.directFallback && !remoteForcedToYouTube && input.sourceChoice !== "remote";
+  const streamEligible = input.streamingEnabled && input.defaultPlayer !== "direct" && !input.directFallback && !remoteForcedToYouTube && input.sourceChoice !== "remote";
+  const canStream = input.hasVideo && streamEligible;
   // A stream is not a stable local file. Even if an old download row exists,
   // always use YouTube while the broadcast is live or scheduled.
   if (input.hasVideo && input.isLive) return "youtube";
@@ -44,6 +45,10 @@ export function resolvePlayerKind(input: {
   // seeks natively and perfectly (the streaming path hands off to it here).
   if (input.hasVideo && (input.downloadStatus === "done" || input.localMediaSource === "tubearchivist") && input.playerSource === "auto") return "local";
   if (!input.playbackPolicyReady) return "loading";
+  // An external video is being imported. Do not mount the YouTube iframe in
+  // the short gap before its library row arrives: it can only claim that the
+  // video is unavailable, while streaming will take over as soon as it does.
+  if (!input.hasVideo && streamEligible) return "loading";
   if (input.hasVideo && input.childDownloadsOnly) return "blocked";
   // Experimental: play-while-downloading. Holds the stream while the file is
   // still downloading; the viewer can still fall back to YouTube (which flips
