@@ -1,13 +1,11 @@
 import { Captions, Check, LoaderCircle } from "lucide-react";
 import { useState } from "react";
-import type { AvailableSubtitle, VideoSubtitle } from "../api";
+import type { AvailableSubtitle } from "../api";
 import { useI18n } from "../i18n";
-import { subtitleLanguageLabel } from "../subtitleLanguages";
 import { FloatingPopover, Menu, MenuItem, MenuSeparator, ScrollArea, Switch } from "./ui";
 
 interface SubtitlePickerProps {
   videoId?: string;
-  subtitles: VideoSubtitle[];
   available: AvailableSubtitle[];
   selectedLanguage: string | null;
   preferredLanguages: string[];
@@ -19,7 +17,6 @@ interface SubtitlePickerProps {
 
 export default function SubtitlePicker({
   videoId,
-  subtitles,
   available,
   selectedLanguage,
   preferredLanguages,
@@ -34,13 +31,11 @@ export default function SubtitlePicker({
   if (!videoId) return null;
 
   const availableByLanguage = new Map(available.map((subtitle) => [subtitle.lang, subtitle]));
-  const downloadedLanguages = new Set(subtitles.map((subtitle) => subtitle.lang));
   const preferred = [...new Set(preferredLanguages.filter(Boolean))]
     .map((language) => availableByLanguage.get(language))
     .filter((language): language is AvailableSubtitle => Boolean(language));
   const preferredSet = new Set(preferred.map((language) => language.lang));
-  const downloaded = subtitles.filter((subtitle) => !preferredSet.has(subtitle.lang));
-  const remaining = available.filter((subtitle) => !downloadedLanguages.has(subtitle.lang) && !preferredSet.has(subtitle.lang));
+  const remaining = available.filter((subtitle) => !preferredSet.has(subtitle.lang));
   const select = (language: string) => {
     setOpen(false);
     onSelect(language);
@@ -93,17 +88,7 @@ export default function SubtitlePicker({
                 {language.label}
               </MenuItem>
             ))}
-            {preferred.length > 0 && (downloaded.length > 0 || remaining.length > 0) && <MenuSeparator />}
-            {downloaded.map((subtitle) => (
-              <MenuItem
-                key={subtitle.lang}
-                selected={selectedLanguage === subtitle.lang}
-                onClick={() => select(subtitle.lang)}
-                suffix={status(subtitle.lang)}
-              >
-                {subtitle.label ?? subtitleLanguageLabel(subtitle.lang)}
-              </MenuItem>
-            ))}
+            {preferred.length > 0 && remaining.length > 0 && <MenuSeparator />}
             {remaining.map((language) => (
               <MenuItem
               key={language.lang}

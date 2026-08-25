@@ -44,7 +44,7 @@ describe("HTTP route manifest", () => {
     const ytdlpUpdateRoute = "POST /downloads/ytdlp/update";
     const importVideoRoute = "POST /videos/:id/import";
     const sessionPlaylistRoute = "POST /playlists/from-session-queue";
-    expect(routes).toHaveLength(239);
+    expect(routes).toHaveLength(238);
     expect(routes).toContain(transcriptRoute);
     expect(routes).toContain(playbackAdjacentRoute);
     expect(routes).toContain(liveAudioRoute);
@@ -59,7 +59,7 @@ describe("HTTP route manifest", () => {
     expect(routes).toContain("POST /plugins/tubearchivist/sync");
     const legacyRoutes = routes.filter((route) => route !== transcriptRoute && route !== playbackAdjacentRoute && route !== liveAudioRoute && route !== vodAudioRoute && route !== retryAudioRoute && route !== directStreamRoute && route !== ytdlpConfigRoute && route !== ytdlpUpdateRoute && route !== importVideoRoute && route !== sessionPlaylistRoute);
     expect(createHash("sha256").update(legacyRoutes.join("\n")).digest("hex"))
-      .toBe("b509256cb7da96282e29051b998efa9ea649d0a75751a82dc589e718d718b330");
+      .toBe("c561f83c7ca1c44db15d83476f85b12d1d70297ef1c8d51f1c82e9b791745ecf");
   });
 
   test("does not register duplicate method/path pairs", () => {

@@ -1,6 +1,7 @@
 import { downloadCookiesConfigured, ytdlpCommand } from "./downloadConfig";
 import { log } from "./logger";
 import { subtitleLanguageLabel } from "./subtitleLanguages";
+import { safeSubtitleUpstreamUrl } from "./subtitleUpstream";
 
 const YOUTUBE_OPAQUE_TRACK_SUFFIX = /^(.*)-[A-Za-z0-9_-]{11}$/;
 const LANGUAGE_CODE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
@@ -51,6 +52,20 @@ function trackLabel(value: unknown): string | null {
   return null;
 }
 
+function directVttUrl(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  for (const format of value) {
+    if (!format || typeof format !== "object") continue;
+    const entry = format as { ext?: unknown; url?: unknown };
+    if (entry.ext !== "vtt" || typeof entry.url !== "string") continue;
+    const url = safeSubtitleUpstreamUrl(entry.url);
+    if (!url) continue;
+    if (new URL(url).pathname.includes("/api/manifest/")) continue;
+    return url;
+  }
+  return null;
+}
+
 /** Build the compact, displayable menu model from yt-dlp's two caption maps. */
 export function buildSubtitleAvailability(
   subtitles: Record<string, unknown>,
@@ -62,6 +77,7 @@ export function buildSubtitleAvailability(
   const add = (source: Record<string, unknown>, include: (lang: string) => boolean) => {
     for (const [track, formats] of Object.entries(source)) {
       if (!validLanguageCode(track)) continue;
+      if (!directVttUrl(formats)) continue;
       const lang = normalizeSubtitleLanguage(track);
       if (!include(lang)) continue;
       const current = groups.get(lang);
@@ -168,6 +184,19 @@ async function cachedMetadata(userId: number, videoId: string): Promise<Subtitle
 export async function availableSubtitlesForVideo(userId: number, videoId: string, automaticLanguages: Iterable<string>): Promise<AvailableSubtitle[]> {
   const metadata = await cachedMetadata(userId, videoId);
   return buildSubtitleAvailability(metadata.subtitles, metadata.automaticCaptions, automaticLanguages);
+}
+
+/** Resolve one current direct WebVTT URL without exposing it to the client. */
+export async function subtitleStreamForVideo(userId: number, videoId: string, language: string, automaticLanguages: Iterable<string>): Promise<string | null> {
+  const metadata = await cachedMetadata(userId, videoId);
+  const available = buildSubtitleAvailability(metadata.subtitles, metadata.automaticCaptions, automaticLanguages);
+  const selected = available.find((subtitle) => subtitle.lang === language);
+  if (!selected) return null;
+  for (const track of selected.tracks) {
+    const url = directVttUrl(metadata.subtitles[track]) ?? directVttUrl(metadata.automaticCaptions[track]);
+    if (url) return url;
+  }
+  return null;
 }
 
 export function clearSubtitleAvailabilityCache(): void {

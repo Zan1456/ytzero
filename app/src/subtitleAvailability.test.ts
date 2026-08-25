@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { buildSubtitleAvailability, normalizeSubtitleLanguage } from "./subtitleAvailability";
-import { fetchSubtitleTracks } from "./downloader";
+
+const vtt = (name: string, url = "https://www.youtube.com/api/timedtext?lang=en") => [{ name, ext: "vtt", url }];
 
 describe("subtitle availability", () => {
   test("folds only YouTube's opaque per-track suffix", () => {
@@ -14,13 +15,13 @@ describe("subtitle availability", () => {
   test("keeps author tracks, filters automatic captions, and retains fallbacks", () => {
     const available = buildSubtitleAvailability(
       {
-        en: [{ name: "English" }],
-        "en-nP7-2PuUl7o": [{ name: "English (audio description)" }],
-        "pt-BR": [{ name: "Português (Brasil)" }],
+        en: vtt("English"),
+        "en-nP7-2PuUl7o": vtt("English (audio description)"),
+        "pt-BR": vtt("Português (Brasil)"),
       },
       {
-        fr: [{ name: "French (auto-generated)" }],
-        de: [{ name: "German (auto-generated)" }],
+        fr: vtt("French (auto-generated)"),
+        de: vtt("German (auto-generated)"),
       },
       ["fr"],
     );
@@ -35,28 +36,23 @@ describe("subtitle availability", () => {
 
   test("uses an author track before an automatic track in the same language", () => {
     const available = buildSubtitleAvailability(
-      { fr: [{ name: "French" }] },
-      { "fr-gqnk0mWVyHo": [{ name: "French (auto-generated)" }] },
+      { fr: vtt("French") },
+      { "fr-gqnk0mWVyHo": vtt("French (auto-generated)") },
       ["fr"],
     );
     expect(available.find((subtitle) => subtitle.lang === "fr")?.tracks).toEqual(["fr", "fr-gqnk0mWVyHo"]);
   });
 
-  test("retries a rate-limited track once before using the next fallback", async () => {
-    const attempts: string[] = [];
-    const waits: number[] = [];
-    const result = await fetchSubtitleTracks(
-      ["fr", "fr-gqnk0mWVyHo"],
-      async (track) => {
-        attempts.push(track);
-        return track === "fr-gqnk0mWVyHo"
-          ? { downloaded: true, rateLimited: false }
-          : { downloaded: false, rateLimited: true };
+  test("offers only direct WebVTT and excludes HLS manifests", () => {
+    const available = buildSubtitleAvailability(
+      {
+        en: [{ name: "English", ext: "json3", url: "https://www.youtube.com/api/timedtext?fmt=json3" }],
+        fr: [{ name: "French", ext: "vtt", url: "https://www.youtube.com/api/manifest/hls_variant/abc" }],
+        pl: vtt("Polski", "https://www.youtube.com/api/timedtext?lang=pl"),
       },
-      async (ms) => { waits.push(ms); },
+      {},
+      [],
     );
-    expect(result).toBe(true);
-    expect(attempts).toEqual(["fr", "fr", "fr-gqnk0mWVyHo"]);
-    expect(waits).toEqual([1500]);
+    expect(available).toEqual([{ lang: "pl", label: "Polski", tracks: ["pl"] }]);
   });
 });

@@ -167,56 +167,38 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   const [subError, setSubError] = useState<string | null>(null);
   const [cueLines, setCueLines] = useState<string[]>([]);
 
-  // Available subtitle files; honour the global "always captions" preference,
-  // quietly fetching the preferred language when it isn't on disk yet.
+  // The server returns local, archive, or proxied WebVTT tracks ready for use.
   useEffect(() => {
     if (!videoId) return;
     let cancelled = false;
+    setSubs([]);
+    setAvailableSubs([]);
+    setSubLang(null);
+    setSubLoading(null);
+    setSubError(null);
     api.videoSubtitles(videoId).then((r) => {
       if (cancelled) return;
       setSubs(r.subtitles);
       setAvailableSubs(r.available);
       if (!ccDefaultOn || !ccDefaultLang) return;
-      if (!r.available.some((subtitle) => subtitle.lang === ccDefaultLang)) return;
-      if (r.subtitles.some((s) => s.lang === ccDefaultLang)) {
+      if (r.subtitles.some((subtitle) => subtitle.lang === ccDefaultLang)) {
+        setSubLoading(ccDefaultLang);
         setSubLang(ccDefaultLang);
-      } else {
-        api.downloadSubtitle(videoId, ccDefaultLang).then((res) => {
-          if (cancelled) return;
-          setSubs(res.subtitles);
-          setAvailableSubs(res.available);
-          if (res.downloaded) setSubLang(ccDefaultLang);
-        }).catch(() => {});
       }
     }).catch(() => {});
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
-  // Picking a language that isn't downloaded: pause, fetch just the subtitles,
-  // then resume right where the viewer was.
+  // Each available language already has an internal WebVTT URL. Loading it
+  // must not interrupt media playback.
   const pickSubLang = useCallback(async (lang: string | null) => {
     setSubError(null);
-    if (!lang) { setSubLang(null); return; }
-    if (subs.some((s) => s.lang === lang)) { setSubLang(lang); return; }
-    if (!videoId) return;
-    const v = videoRef.current;
-    const wasPlaying = Boolean(!transportLocked && v && !v.paused && !v.ended);
-    if (!transportLocked) v?.pause();
+    if (!lang) { setSubLoading(null); setSubLang(null); return; }
+    if (!subs.some((subtitle) => subtitle.lang === lang)) { setSubError(lang); return; }
     setSubLoading(lang);
-    try {
-      const r = await api.downloadSubtitle(videoId, lang);
-      setSubs(r.subtitles);
-      setAvailableSubs(r.available);
-      if (r.downloaded) setSubLang(lang);
-      else setSubError(lang);
-    } catch {
-      setSubError(lang);
-    } finally {
-      setSubLoading(null);
-      if (wasPlaying) v?.play().catch(() => {});
-    }
-  }, [subs, transportLocked, videoId]);
+    setSubLang(lang);
+  }, [subs]);
 
   // The browser parses the WebVTT track (mode "hidden"); we render active cues
   // ourselves so the user's subtitle style applies reliably everywhere.
@@ -682,6 +664,8 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
             srcLang={activeSub.lang}
             label={activeSub.label ?? subtitleLanguageLabel(activeSub.lang)}
             default
+            onLoad={() => { setSubLoading((loading) => loading === activeSub.lang ? null : loading); setSubError(null); }}
+            onError={() => { setSubLoading((loading) => loading === activeSub.lang ? null : loading); setSubError(activeSub.lang); }}
           />
         )}
       </video>
@@ -781,7 +765,6 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
           )}
           <SubtitlePicker
             videoId={videoId}
-            subtitles={subs}
             available={availableSubs}
             selectedLanguage={subLang}
             preferredLanguages={preferredSubtitleLanguages}

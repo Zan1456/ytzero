@@ -5,12 +5,14 @@ import { database } from "../database";
 import { getUserSetting } from "../db";
 import { childLocalOnly, isChildUser } from "../childTime";
 import { DOWNLOADS_ADMIN_SETTING_KEYS, dlSettings, downloadCookiesConfigured, downloadSettings, profileDownloadsEnabled, removeDownloadCookies, saveDownloadCookies, setDownloadSettings, setProfileDownloadsEnabled } from "../downloadConfig";
-import { activeDownloadProgress, cancelAllPendingDownloads, downloadStats, downloadStatusSummary, enqueueDownload, fetchSubtitles, getDirectVideoResponse, getDownload, getHlsPlaylist, getHlsResource, getHlsSegment, hasHlsSession, invalidateAudioSources, invalidateDirectVideoSources, isSegmentName, listDownloads, listSubtitleFiles, liveStreamEnabled, prioritizeDownload, removeDownload, setDownloadPinned, srtToVtt, ytdlpJavascriptRuntimeStatus, ytdlpStatus } from "../downloader";
+import { activeDownloadProgress, cancelAllPendingDownloads, downloadStats, downloadStatusSummary, enqueueDownload, getDirectVideoResponse, getDownload, getHlsPlaylist, getHlsResource, getHlsSegment, hasHlsSession, invalidateAudioSources, invalidateDirectVideoSources, isSegmentName, listDownloads, listSubtitleFiles, liveStreamEnabled, prioritizeDownload, removeDownload, setDownloadPinned, srtToVtt, ytdlpJavascriptRuntimeStatus, ytdlpStatus } from "../downloader";
 import { createDownloadRule, deleteDownloadRule, DownloadRuleValidationError, listDownloadRules, previewDownloadRule, updateDownloadRule, type DownloadRuleInput } from "../downloadRules";
-import { availableSubtitlesForVideo, normalizeSubtitleLanguage, type AvailableSubtitle } from "../subtitleAvailability";
+import { availableSubtitlesForVideo, normalizeSubtitleLanguage, subtitleStreamForVideo } from "../subtitleAvailability";
 import { subtitleLanguageLabel } from "../subtitleLanguages";
+import { fetchSubtitleUpstream, proxySubtitleResponse } from "../subtitleUpstream";
 import { configuredTimeZone } from "../timeZone";
 import { tubeArchivistResource, tubeArchivistSubtitleList, tubeArchivistSubtitleResponse } from "../tubeArchivist";
+import { validYouTubeVideoId } from "../youtubeComments";
 import { registerAudioRoutes } from "./audioRoutes";
 import { registerYtdlpUpdateRoutes } from "./ytdlpUpdateRoutes";
 import { ytdlpUpdateChannel, ytdlpUpdateIntervalDays } from "../ytdlpUpdater";
@@ -364,7 +366,7 @@ async function subtitleList(videoId: string) {
       lang,
       label: subtitleLanguageLabel(lang),
       raw: subtitle.lang,
-      url: `/api/videos/${encodeURIComponent(videoId)}/subtitles/${encodeURIComponent(subtitle.lang)}`,
+      url: `/api/videos/${encodeURIComponent(videoId)}/subtitles/${encodeURIComponent(lang)}`,
     });
   }
   return [...grouped.values()].map(({ raw: _raw, ...subtitle }) => subtitle);
@@ -385,72 +387,62 @@ async function subtitlePreferences(userId: number, videoId: string): Promise<str
   ].filter((language): language is string => typeof language === "string" && language.length > 0))];
 }
 
-function mergeAvailableSubtitles(available: AvailableSubtitle[], downloaded: Array<{ lang: string; url: string; label: string }>): AvailableSubtitle[] {
-  const merged = new Map(available.map((subtitle) => [subtitle.lang, subtitle]));
-  for (const subtitle of downloaded) {
-    if (!merged.has(subtitle.lang)) merged.set(subtitle.lang, { lang: subtitle.lang, label: subtitle.label, tracks: [] });
-  }
-  return [...merged.values()].sort((a, b) => a.label.localeCompare(b.label));
-}
-
-function serializeAvailableSubtitles(available: AvailableSubtitle[]) {
-  return available.map(({ lang, label }) => ({ lang, label }));
-}
-
 api.get("/videos/:id/subtitles", async (c) => {
   const uid = currentUserId(c);
   const videoId = c.req.param("id");
-  if (!await getDownload(uid, videoId)) {
-    const subtitles = await tubeArchivistSubtitleList(videoId) ?? [];
-    return c.json({ subtitles, available: subtitles.map((subtitle) => ({ lang: subtitle.lang, label: subtitleLanguageLabel(subtitle.lang) })) });
-  }
-  const subtitles = await subtitleList(videoId);
-  try {
-    const available = mergeAvailableSubtitles(await availableSubtitlesForVideo(uid, videoId, await subtitlePreferences(uid, videoId)), subtitles);
-    return c.json({ subtitles, available: serializeAvailableSubtitles(available) });
+  if (!validYouTubeVideoId(videoId) || !await videoExistsStmt.get(videoId)) return c.json({ error: "not found" }, 404);
+  const tubeArchivist = await tubeArchivistSubtitleList(videoId) ?? [];
+  const local = await getDownload(uid, videoId) ? await subtitleList(videoId) : [];
+  const subtitles = new Map<string, { lang: string; url: string; label?: string }>();
+  for (const subtitle of tubeArchivist) subtitles.set(subtitle.lang, subtitle);
+  for (const subtitle of local) if (!subtitles.has(subtitle.lang)) subtitles.set(subtitle.lang, subtitle);
+  if (!childLocalOnly(uid)) try {
+    const available = await availableSubtitlesForVideo(uid, videoId, await subtitlePreferences(uid, videoId));
+    for (const subtitle of available) {
+      if (!subtitles.has(subtitle.lang)) subtitles.set(subtitle.lang, {
+        lang: subtitle.lang,
+        label: subtitle.label,
+        url: `/api/videos/${encodeURIComponent(videoId)}/subtitles/${encodeURIComponent(subtitle.lang)}`,
+      });
+    }
   } catch {
-    return c.json({ subtitles, available: subtitles.map(({ lang, label }) => ({ lang, label })) });
+    // Local and TubeArchivist tracks remain usable when yt-dlp metadata fails.
   }
+  const list = [...subtitles.values()].sort((a, b) => (a.label ?? subtitleLanguageLabel(a.lang)).localeCompare(b.label ?? subtitleLanguageLabel(b.lang)));
+  return c.json({ subtitles: list, available: list.map(({ lang, label }) => ({ lang, label: label ?? subtitleLanguageLabel(lang) })) });
 });
 
 api.get("/videos/:id/subtitles/:lang", async (c) => {
-  if (!await getDownload(currentUserId(c), c.req.param("id"))) {
-    return await tubeArchivistSubtitleResponse(c.req.param("id"), c.req.param("lang"), c.req.raw.signal)
-      ?? c.json({ error: "not found" }, 404);
-  }
-  const file = (await listSubtitleFiles(c.req.param("id"))).find((s) => s.lang === c.req.param("lang"));
-  if (!file || !existsSync(file.path)) return c.json({ error: "not found" }, 404);
-  let text = await Bun.file(file.path).text();
-  if (file.ext === "srt") text = srtToVtt(text);
-  return new Response(text, {
-    headers: { "Content-Type": "text/vtt; charset=utf-8", "Cache-Control": "no-store" },
-  });
-});
-
-// Viewer picked a language that wasn't downloaded with the video: fetch just
-// the subtitles (no video re-download) and hand back the refreshed list.
-api.post("/videos/:id/subtitles", async (c) => {
   const uid = currentUserId(c);
-  if (childLocalOnly(uid)) return c.json({ error: "restricted" }, 403);
-  if (!await profileDownloadsEnabled(uid)) return c.json({ error: "downloads disabled" }, 409);
-  const id = c.req.param("id");
-  if (!await getDownload(uid, id)) return c.json({ error: "not downloaded" }, 404);
-  const { lang } = await c.req.json().catch(() => ({}));
-  if (typeof lang !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(lang)) {
-    return c.json({ error: "invalid language" }, 400);
+  const videoId = c.req.param("id");
+  const language = c.req.param("lang");
+  if (!validYouTubeVideoId(videoId) || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(language) || !await videoExistsStmt.get(videoId)) {
+    return c.json({ error: "not found" }, 404);
   }
-  if (!await videoExistsStmt.get(id)) return c.json({ error: "not found" }, 404);
-  let available: AvailableSubtitle[];
+  const archived = await tubeArchivistSubtitleResponse(videoId, language, c.req.raw.signal);
+  if (archived) return archived;
+  if (await getDownload(uid, videoId)) {
+    const file = (await listSubtitleFiles(videoId)).find((subtitle) => normalizeSubtitleLanguage(subtitle.lang) === language);
+    if (file && existsSync(file.path)) {
+      let text = await Bun.file(file.path).text();
+      if (file.ext === "srt") text = srtToVtt(text);
+      return new Response(text, { headers: { "Content-Type": "text/vtt; charset=utf-8", "Cache-Control": "no-store" } });
+    }
+  }
+  if (childLocalOnly(uid)) return c.json({ error: "not found" }, 404);
   try {
-    available = await availableSubtitlesForVideo(uid, id, await subtitlePreferences(uid, id));
+    const url = await subtitleStreamForVideo(uid, videoId, language, await subtitlePreferences(uid, videoId));
+    if (!url) return c.json({ error: "not found" }, 404);
+    const upstream = await fetchSubtitleUpstream(fetch, url, { signal: c.req.raw.signal });
+    const proxied = upstream && proxySubtitleResponse(upstream);
+    if (!proxied) {
+      await upstream?.body?.cancel().catch(() => {});
+      return c.json({ error: "subtitle unavailable" }, 502);
+    }
+    return proxied;
   } catch {
-    return c.json({ error: "subtitle availability unavailable" }, 502);
+    return c.json({ error: "subtitle unavailable" }, 502);
   }
-  const selected = available.find((subtitle) => subtitle.lang === lang);
-  if (!selected) return c.json({ error: "subtitle unavailable" }, 400);
-  const ok = await fetchSubtitles(uid, id, selected.tracks);
-  const subtitles = await subtitleList(id);
-  return c.json({ ok, downloaded: subtitles.some((s) => s.lang === lang), subtitles, available: serializeAvailableSubtitles(mergeAvailableSubtitles(available, subtitles)) });
 });
 
 // Download a locally saved video as a file rather than streaming it in the

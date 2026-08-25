@@ -236,37 +236,6 @@ async function fetchSubtitleSidecars(userId: number, videoId: string, langs: str
   }
 }
 
-const SUBTITLE_RATE_LIMIT_RETRY_MS = 1_500;
-
-export interface SubtitleTrackAttempt {
-  downloaded: boolean;
-  rateLimited: boolean;
-}
-
-/** Bounded fallback policy shared by real yt-dlp calls and regression tests. */
-export async function fetchSubtitleTracks(
-  tracks: string[],
-  fetchTrack: (track: string) => Promise<SubtitleTrackAttempt>,
-  wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-): Promise<boolean> {
-  for (const track of [...new Set(tracks)]) {
-    const first = await fetchTrack(track);
-    if (first.downloaded) return true;
-    if (!first.rateLimited) continue;
-    await wait(SUBTITLE_RATE_LIMIT_RETRY_MS);
-    if ((await fetchTrack(track)).downloaded) return true;
-  }
-  return false;
-}
-
-/** Fetch the real tracks behind one display language, retrying a 429 once. */
-export async function fetchSubtitles(userId: number, videoId: string, tracks: string[]): Promise<boolean> {
-  return fetchSubtitleTracks(tracks, async (track) => {
-    const result = await fetchSubtitleSidecars(userId, videoId, track, { manual: true, automatic: true });
-    return { downloaded: result.ok && (await listSubtitleFiles(videoId)).some((file) => file.lang === track), rateLimited: result.rateLimited };
-  });
-}
-
 /** Naive SRT → WebVTT conversion, enough for <track> playback. */
 export function srtToVtt(srt: string): string {
   return "WEBVTT\n\n" + srt

@@ -75,6 +75,9 @@ The filename template defaults to `{playlist}/{id}`. Available tokens include
 `{channel_id}`, and `{playlist}`; `/` creates subdirectories. Administrators can
 also enable thumbnail files, embedded metadata, `info.json`, NFO, and subtitle
 sidecars. Subtitle language and automatic-caption choices are per profile.
+When a local or direct-stream player needs a subtitle that is not stored as a
+sidecar, YT Zero streams a supported WebVTT track through its server instead of
+creating a new file. Existing sidecars remain available for offline playback.
 
 Retention defaults to 14 days, watched files receive a 24-hour grace period,
 liked videos are protected, and the shared storage cap defaults to 25 GB and
