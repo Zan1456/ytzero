@@ -161,6 +161,33 @@ export const DATABASE_MIGRATIONS: readonly DatabaseMigration[] = [
       { kind: "sql", statement: "CREATE INDEX IF NOT EXISTS idx_bookmarks_video ON bookmarks(video_id)" },
     ],
   },
+  {
+    version: 8,
+    name: "shorts-classification-retry",
+    schemaHashes: {
+      "app/src/schema.sql": "b8b7d541e396d5fe9a6b9e259996e92a2636a282467b27068404d6d57aea58e6",
+      "app/src/channelPostsSchema.sql": "70a7df33bf373524cf6cd0687e46d7987a7cd90a2619fd9586d12d6f940d45a5",
+      "app/src/tubeArchivistSchema.sql": "30b7c3fc889aedc977e2e5cd834cfd48d9e51870530213433359ed24333e03a0",
+    },
+    sqlite: [
+      // These legacy catalog columns predate cross-database migrations. Keep
+      // the retry index safe when upgrading an older PostgreSQL/SQLite schema.
+      { kind: "add-column", table: "videos", column: "is_short", definition: "INTEGER" },
+      { kind: "add-column", table: "videos", column: "is_private", definition: "INTEGER NOT NULL DEFAULT 0" },
+      { kind: "add-column", table: "videos", column: "short_check_attempts", definition: "INTEGER NOT NULL DEFAULT 0" },
+      { kind: "add-column", table: "videos", column: "short_check_attempted_at", definition: "TEXT" },
+      { kind: "add-column", table: "videos", column: "short_check_next_attempt_at", definition: "TEXT" },
+      { kind: "sql", statement: "CREATE INDEX IF NOT EXISTS idx_videos_shorts_retry ON videos(is_short, is_private, is_unavailable, short_check_next_attempt_at)" },
+    ],
+    postgres: [
+      { kind: "add-column", table: "videos", column: "is_short", definition: "INTEGER" },
+      { kind: "add-column", table: "videos", column: "is_private", definition: "INTEGER NOT NULL DEFAULT 0" },
+      { kind: "add-column", table: "videos", column: "short_check_attempts", definition: "INTEGER NOT NULL DEFAULT 0" },
+      { kind: "add-column", table: "videos", column: "short_check_attempted_at", definition: "TEXT" },
+      { kind: "add-column", table: "videos", column: "short_check_next_attempt_at", definition: "TEXT" },
+      { kind: "sql", statement: "CREATE INDEX IF NOT EXISTS idx_videos_shorts_retry ON videos(is_short, is_private, is_unavailable, short_check_next_attempt_at)" },
+    ],
+  },
 ];
 
 function quoteIdentifier(identifier: string): string {

@@ -18,6 +18,7 @@ import { channelSyncJobIsRunning } from "./channelSyncRuntime";
 import { isYouTubeRateLimitError, isYouTubeRefusalError } from "./youtubeRateLimit";
 import { RSS_VIDEO_UPSERT_SQL } from "./videoUpserts";
 import { syncChannelVideoAvailability } from "./videoAvailabilitySync";
+import { inferIsShortFromMetadata, shortCheckRetryInterval } from "./shortClassification";
 
 const upsertVideo = database.prepare(RSS_VIDEO_UPSERT_SQL);
 
@@ -330,10 +331,12 @@ export async function importPlaylistVideos(playlistId: string, force = false): P
   const notificationsCreated = await notifyFollowedPlaylistVideos(playlistId, discoveredVideoIds);
   await database.prepare("UPDATE channel_playlists SET last_synced_at = datetime('now'), sync_attempted_at = datetime('now') WHERE playlist_id = ?").run(playlistId);
 
+  // Playlist snapshots already include durations, so settle the free cases
+  // immediately. Persisted backoff bounds the remaining network checks.
+  backfillShorts(snapshot.videos.map((v) => v.videoId)).catch((error) => {
+    log.warn("playlist.shorts_backfill_failed", { playlistId, error: error instanceof Error ? error.message : String(error) });
+  });
   if (added > 0) {
-    backfillShorts(snapshot.videos.map((v) => v.videoId)).catch((error) => {
-      log.warn("playlist.shorts_backfill_failed", { playlistId, error: error instanceof Error ? error.message : String(error) });
-    });
     log.info("playlist.import.added", { playlistId, channelId: feed.channelId, added });
   }
   if (notificationsCreated > 0) log.info("playlist.notifications_created", { playlistId, videos: discoveredVideoIds.length, notifications: notificationsCreated });
@@ -405,7 +408,6 @@ export async function refreshChannel(channelId: string): Promise<{ added: number
       log.info("video.added", { source: "rss", channelId, videoId: v.videoId, title: v.title, publishedAt: v.publishedAt });
     }
   }
-  await backfillShorts(feed.videos.map((v) => v.videoId));
   const availability = await syncChannelVideoAvailability(
     channelId,
     new Set(feed.videos.map((video) => video.videoId)),
@@ -431,6 +433,10 @@ export async function refreshChannel(channelId: string): Promise<{ added: number
     }
   }
 
+  // Duration is a free, authoritative negative Shorts signal. Populate it
+  // before asking the Shorts route so ordinary long videos never hit YouTube.
+  await backfillShorts(feed.videos.map((v) => v.videoId));
+
   if (feed.channelTitle) {
     await database.prepare(
       "UPDATE channels SET title = ?, last_refreshed_at = datetime('now') WHERE channel_id = ? AND title = ''"
@@ -445,34 +451,39 @@ export async function refreshChannel(channelId: string): Promise<{ added: number
 }
 
 /**
- * Resolve is_short for videos that haven't been checked yet (is_short IS NULL).
- * Limited per call to stay polite to YouTube; unknowns remain pending so an
- * automatic job cannot mistake them for regular videos.
+ * Resolve is_short for videos that haven't been classified yet. Unknowns stay
+ * NULL so automatic jobs cannot mistake them for regular videos, but network
+ * retries are durably rate-limited.
  */
 export async function backfillShorts(videoIds?: string[], limit = 50) {
-  let rows: { video_id: string; title: string }[];
+  let rows: StoredShortCandidate[];
   if (videoIds && videoIds.length > 0) {
     const ph = videoIds.map(() => "?").join(",");
     rows = await database
-      .prepare(`SELECT video_id, title FROM videos WHERE is_short IS NULL AND is_private = 0 AND is_unavailable = 0 AND video_id IN (${ph})`)
-      .all(...videoIds) as any[];
+      .prepare(`SELECT video_id, title, duration, short_check_attempts, short_check_next_attempt_at
+                FROM videos
+                WHERE is_short IS NULL AND is_private = 0 AND is_unavailable = 0 AND video_id IN (${ph})
+                ORDER BY CASE WHEN short_check_next_attempt_at IS NULL OR short_check_next_attempt_at <= datetime('now') THEN 0 ELSE 1 END,
+                         COALESCE(published_at, created_at) DESC
+                LIMIT ?`)
+      .all(...videoIds, limit) as StoredShortCandidate[];
   } else {
     rows = await database
-      .prepare(`SELECT video_id, title FROM videos
+      .prepare(`SELECT video_id, title, duration, short_check_attempts, short_check_next_attempt_at FROM videos
                 WHERE is_short IS NULL
                   AND is_private = 0
                   AND is_unavailable = 0
                   AND COALESCE(published_at, created_at) >= datetime('now', ?)
-                ORDER BY COALESCE(published_at, created_at) DESC
+                ORDER BY CASE WHEN short_check_next_attempt_at IS NULL OR short_check_next_attempt_at <= datetime('now') THEN 0 ELSE 1 END,
+                         COALESCE(published_at, created_at) DESC
                 LIMIT ?`)
-      .all(VIDEO_MAINTENANCE_CUTOFF, limit) as any[];
+      .all(VIDEO_MAINTENANCE_CUTOFF, limit) as StoredShortCandidate[];
   }
-  const setShort = database.prepare("UPDATE videos SET is_short = ? WHERE video_id = ?");
   let checked = 0;
   for (const r of rows) {
-    let short: boolean | null;
     try {
-      short = await classifyIsShort(r.video_id, r.title);
+      const result = await resolveStoredShort(r);
+      if (result.attempted) checked++;
     } catch (error) {
       if (isYouTubeRefusalError(error)) {
         log.info("video.shorts_backfill_halted", { checked, skipped: rows.length - checked });
@@ -480,11 +491,64 @@ export async function backfillShorts(videoIds?: string[], limit = 50) {
       }
       throw error;
     }
-    checked++;
-    if (short !== null) await setShort.run(short ? 1 : 0, r.video_id);
-    log.info("video.short_checked", { videoId: r.video_id, isShort: short });
     await Bun.sleep(120);
   }
+}
+
+interface StoredShortCandidate {
+  video_id: string;
+  title: string;
+  duration: string | null;
+  short_check_attempts: number;
+  short_check_next_attempt_at: string | null;
+}
+
+const saveKnownShort = database.prepare(`
+  UPDATE videos
+  SET is_short = ?, short_check_next_attempt_at = NULL
+  WHERE video_id = ? AND is_short IS NULL
+`);
+
+const reserveShortCheck = database.prepare(`
+  UPDATE videos
+  SET short_check_attempts = short_check_attempts + 1,
+      short_check_attempted_at = datetime('now'),
+      short_check_next_attempt_at = datetime('now', ?)
+  WHERE video_id = ? AND is_short IS NULL
+    AND (? = 1 OR short_check_next_attempt_at IS NULL OR short_check_next_attempt_at <= datetime('now'))
+`);
+
+const completeShortCheck = database.prepare(`
+  UPDATE videos
+  SET is_short = ?, short_check_next_attempt_at = NULL
+  WHERE video_id = ? AND is_short IS NULL
+`);
+
+async function resolveStoredShort(candidate: StoredShortCandidate, force = false): Promise<{ attempted: boolean; resolved: boolean }> {
+  const local = inferIsShortFromMetadata(candidate.title, candidate.duration);
+  if (local !== null) {
+    const resolved = (await saveKnownShort.run(local ? 1 : 0, candidate.video_id)).changes > 0;
+    if (resolved) {
+      log.info("video.short_checked", { videoId: candidate.video_id, isShort: local, source: "metadata" });
+    }
+    return { attempted: false, resolved };
+  }
+
+  const attempts = Number(candidate.short_check_attempts ?? 0) + 1;
+  const retryInterval = shortCheckRetryInterval(attempts);
+  const reservation = await reserveShortCheck.run(retryInterval, candidate.video_id, force ? 1 : 0);
+  if (reservation.changes === 0) return { attempted: false, resolved: false };
+
+  const short = await classifyIsShort(candidate.video_id, candidate.title);
+  const resolved = short !== null && (await completeShortCheck.run(short ? 1 : 0, candidate.video_id)).changes > 0;
+  log.info("video.short_checked", {
+    videoId: candidate.video_id,
+    isShort: short,
+    source: "youtube",
+    attempt: attempts,
+    nextAttemptIn: retryInterval,
+  });
+  return { attempted: true, resolved };
 }
 
 export interface ChannelMetadataSyncResult {
@@ -501,7 +565,8 @@ export interface ChannelMetadataSyncResult {
 export async function syncChannelMissingMetadata(channelId: string): Promise<ChannelMetadataSyncResult> {
   const rows = await database.prepare(`
     SELECT video_id, title, live_status, duration, published_at,
-           published_at_approximate, is_short
+           published_at_approximate, is_short, short_check_attempts,
+           short_check_next_attempt_at
     FROM videos
     WHERE channel_id = ? AND is_private = 0 AND is_unavailable = 0 AND (
       published_at IS NULL OR published_at = '' OR published_at_approximate = 1
@@ -516,6 +581,8 @@ export async function syncChannelMissingMetadata(channelId: string): Promise<Cha
     published_at: string | null;
     published_at_approximate: number;
     is_short: number | null;
+    short_check_attempts: number;
+    short_check_next_attempt_at: string | null;
   }[];
 
   const saveInfo = database.prepare(`
@@ -538,7 +605,6 @@ export async function syncChannelMissingMetadata(channelId: string): Promise<Cha
     UPDATE videos SET published_at = ?, published_at_approximate = 0
     WHERE video_id = ? AND (published_at IS NULL OR published_at = '' OR published_at_approximate = 1)
   `);
-  const saveShort = database.prepare("UPDATE videos SET is_short = ? WHERE video_id = ? AND is_short IS NULL");
   const updatedVideos = new Set<string>();
   let dates = 0;
   let durations = 0;
@@ -549,6 +615,7 @@ export async function syncChannelMissingMetadata(channelId: string): Promise<Cha
   for (let offset = 0; offset < rows.length; offset += concurrency) {
     await Promise.all(rows.slice(offset, offset + concurrency).map(async (row) => {
       let rowFailed = false;
+      let currentDuration = row.duration;
       const needsDate = !row.published_at || row.published_at_approximate === 1;
       const needsDuration = !row.duration && !['live', 'upcoming'].includes(row.live_status);
       if (needsDate || needsDuration) {
@@ -565,6 +632,7 @@ export async function syncChannelMissingMetadata(channelId: string): Promise<Cha
             if (needsDate && info.publishedAt) dates++;
             if (info.duration || info.publishedAt) updatedVideos.add(row.video_id);
           }
+          if (needsDuration && info.duration) currentDuration = info.duration;
         } catch {
           try {
             const publishedAt = needsDate ? await fetchVideoPublishedAt(row.video_id) : null;
@@ -582,8 +650,8 @@ export async function syncChannelMissingMetadata(channelId: string): Promise<Cha
 
       if (row.is_short == null) {
         try {
-          const isShort = await classifyIsShort(row.video_id, row.title);
-          if (isShort !== null && (await saveShort.run(isShort ? 1 : 0, row.video_id)).changes > 0) {
+          const result = await resolveStoredShort({ ...row, duration: currentDuration }, true);
+          if (result.resolved) {
             shorts++;
             updatedVideos.add(row.video_id);
           }
@@ -782,6 +850,10 @@ async function runChannelSync(channelId: string): Promise<ChannelSyncResult> {
       log.info("video.added", { source: "rss-only", channelId, videoId: v.videoId, title: v.title, publishedAt: v.publishedAt });
     }
   }
+
+  // Scraped videos and playlist imports carry duration metadata. Classify the
+  // cheap cases now, before this full sync can trigger any later maintenance.
+  await backfillShorts([...seen]);
 
   const availability = rateLimited
     ? { checked: 0, deleted: 0, private: 0, failed: 0, rateLimited: true }

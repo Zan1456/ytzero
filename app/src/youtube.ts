@@ -5,6 +5,7 @@ import { db, getUserSetting } from "./db";
 import { createYoutubeSearch, parseAbbreviatedCount } from "./youtubeSearch";
 import { isYouTubeRateLimitError, isYouTubeRefusalError, readYouTubeResponse, youtubeRefusalGate } from "./youtubeRateLimit";
 import { DeletedVideoError, fetchVideoOEmbedAvailability, isDeletedVideoError, isPrivateVideoError, PrivateVideoError } from "./youtubeVideoAvailability";
+import { inferIsShortFromMetadata } from "./shortClassification";
 export { DeletedVideoError, fetchVideoOEmbedAvailability, isDeletedVideoError, isPrivateVideoError, PrivateVideoError, videoOEmbedAvailabilityFromStatus } from "./youtubeVideoAvailability";
 const _require = createRequire(import.meta.url);
 const InnerTubeClient = _require("innertube.js");
@@ -1184,8 +1185,10 @@ export async function classifyIsShort(
   videoId: string,
   title: string,
   fetchImpl: typeof fetch = fetch,
+  duration?: string | null,
 ): Promise<boolean | null> {
-  if (/#shorts?\b/i.test(title)) return true;
+  const local = inferIsShortFromMetadata(title, duration);
+  if (local !== null) return local;
   youtubeRefusalGate.enter();
   try {
     const res = await fetchImpl(`https://www.youtube.com/shorts/${videoId}`, {

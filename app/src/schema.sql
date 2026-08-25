@@ -23,7 +23,12 @@ CREATE TABLE IF NOT EXISTS videos (
   -- today | tonight | tomorrow | tomorrow_evening | weekend (only when status = 'queued')
   bucket       TEXT,
   queued_at    TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Retry metadata for inconclusive YouTube Shorts classification. This is
+  -- rebuildable catalog state and is deliberately excluded from portable backup.
+  short_check_attempts INTEGER NOT NULL DEFAULT 0,
+  short_check_attempted_at TEXT,
+  short_check_next_attempt_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_videos_channel_published ON videos(channel_id, published_at DESC);
 

@@ -63,6 +63,8 @@ beforeAll(async () => {
   db.prepare("INSERT INTO channels(channel_id,title,url) VALUES(?,?,?)").run("UCportable", "Portable channel", "https://youtube.com/channel/UCportable");
   db.prepare("INSERT INTO user_channels(user_id,channel_id,followed) VALUES(1,'UCportable',1)").run();
   db.prepare("INSERT INTO videos(video_id,channel_id,title,external) VALUES('portable001','UCportable','Portable video',1)").run();
+  db.prepare("UPDATE videos SET short_check_attempts=17, short_check_attempted_at=?, short_check_next_attempt_at=? WHERE video_id='portable001'")
+    .run("SHORT_CHECK_ATTEMPT_SENTINEL", "SHORT_CHECK_NEXT_SENTINEL");
   db.prepare("INSERT INTO history(user_id,video_id,watched_at) VALUES(1,'portable001','2026-07-25 10:00:00')").run();
 });
 
@@ -87,6 +89,14 @@ describe("portable backup ZIP security", () => {
 });
 
 describe("portable backup classification and restore", () => {
+  test("excludes rebuildable Shorts retry metadata", async () => {
+    const zip = await backup.createPortableBackup({ preset: "full" });
+    const archiveText = [...backup.readPortableZip(zip).values()].map((bytes) => decoder.decode(bytes)).join("\n");
+    expect(archiveText).not.toContain("SHORT_CHECK_ATTEMPT_SENTINEL");
+    expect(archiveText).not.toContain("SHORT_CHECK_NEXT_SENTINEL");
+    expect(archiveText).not.toContain('"short_check_attempts"');
+  });
+
   test("registry contains no secret section", async () => {
     expect(backup.BACKUP_SECTIONS.some((section) => section.sensitivity === "secret")).toBe(false);
     expect((await backup.backupOptions()).exclusions.join(" ")).toContain("passkeys");
