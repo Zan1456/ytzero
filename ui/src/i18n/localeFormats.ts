@@ -90,6 +90,5 @@ export const localeFormats: Record<Language, LocaleFormat> = {
   hu: {
     videoCount: (n) => `${n} videó`, addedVideos: (n) => `${n} újonnan hozzáadott videó`, channelCount: (n) => `${n} csatorna`, playlistCount: (n) => `${n} lejátszási lista`, historyEntryCount: (n) => `${n} elem`,
     ageUnit: (_n, unit) => ({ days: "nap", weeks: "hét", months: "hónap", years: "év" })[unit],
-    }[unit]),
   },
 };
